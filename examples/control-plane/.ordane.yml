@@ -1,0 +1,185 @@
+# What `make help` cannot say.
+#
+# `make help` supplies the target list, the descriptions and the environments.
+# Everything below is what it has no way to express: which environments this
+# console may reach, what a parameter means, and which runs count as a release.
+#
+# Every key here is optional. A repository with no file at all still gets a
+# catalogue and a history; it simply cannot launch anything.
+
+# What this control plane is called, in a history that several people read.
+# Without it the name is the folder, and two people with different checkouts in
+# folders of the same name would look like one estate.
+control_plane: ordane/example
+
+# Which environments may be launched against. Nothing runs until a name is
+# here. In your own control plane leave this empty until you mean it; the demo
+# allows the two that reach nothing.
+environments:
+  allow: [docker, staging]
+
+# Configure Ansible itself, for a control plane with no ansible.cfg of its own.
+# Each key is an environment variable name, set on the run, so these add to
+# whatever ansible.cfg is found rather than replacing it. A repository keeps
+# its own forks and its own vault_password_file, and `ansible-config dump`
+# shows where each value came from.
+#
+# ANSIBLE_CONFIG is refused, because it replaces the repository's config
+# outright and a plane setting vault_password_file would quietly stop
+# decrypting. Declare the individual settings instead.
+#
+# A setting whose value is a credential is refused too, since this file gets
+# committed. ANSIBLE_VAULT_PASSWORD_FILE names a path, so it is fine.
+ansible:
+  # This example has its roles beside its playbooks and no ansible.cfg to say so.
+  ANSIBLE_ROLES_PATH: ./roles
+  # Named rather than discovered: a local connection otherwise reports
+  # whichever interpreter it found under whoever's home directory it ran in.
+  ANSIBLE_PYTHON_INTERPRETER: /usr/bin/python3
+
+# The order these are declared in is the order the Actions page shows them,
+# because that order is a decision about how the work is done.
+groups:
+  Release: [build, deploy, activate]
+  Site state: [maintenance-on, maintenance-off]
+  Cache: [flush-cache]
+  Patches: [patch-fleet]
+  Fleet: [ping, slow-ping, fail-on-purpose]
+  Repo: [check]
+
+# A target the console should not offer. `help` lists itself, and nobody needs
+# a button for it.
+hidden:
+  - help
+
+# Which task's output says what a run told the outside world. The deploy here
+# opens a PagerDuty window, marks the release in New Relic and posts a Noibu
+# webhook, and every one of those is `failed_when: false` — so a webhook that
+# never landed costs the deploy nothing and is invisible unless something looks.
+notifications:
+  task: Report which notifications landed
+
+# What this control plane checks about itself, and the image it checks in.
+# Read-only, no network, as you rather than root — a check that needs to write
+# to the repository or reach a host is not a check.
+validation:
+  image: python:3.12-slim
+  checks:
+    - name: The Makefile is where the console looks
+      run: [test, -f, Makefile]
+    - name: Every playbook is readable
+      run: [python, -c, "import glob; assert glob.glob('actions/*.yml')"]
+    - name: No inventory holds a password
+      run:
+        - python
+        - -c
+        - |
+          import glob, re
+          held = [f for f in glob.glob('inventory/*')
+                  if re.search('password', open(f, errors='ignore').read(), re.I)]
+          assert not held, held
+
+playbooks:
+  - "actions/*.yml"
+
+# How a bare playbook is run. {playbook} and {environment} are substituted.
+playbook_command: [bin/run-playbook, "{playbook}"]
+
+# Which environments count towards a delivery measure. Without this, a run
+# against a throwaway container fleet would read as a release.
+#
+# In a real control plane this is `production`. The demo names `staging`
+# instead — the environment you can actually launch against here — so that
+# running a deploy from the console fills the measures in front of you.
+metrics:
+  environments: [staging]
+
+targets:
+  # The cutover. `danger: high` puts a warning in front of the form and makes
+  # the Run button destructive; `confirm: type-environment-name` makes you
+  # type the environment before it will go.
+  activate:
+    danger: high
+    confirm: type-environment-name
+    cutover: true
+    deploy: true
+    params:
+      release:
+        required: true
+        help: the built release to cut over to
+        choices_from: glob:releases/*
+        allow_other: true
+
+  deploy:
+    danger: high
+    deploy: true
+    cutover: true
+    dry_run: true
+    # The operational half: who owns this, when it was last looked at, what has
+    # to be true before it runs, what proves it worked, and what to reach for.
+    owner: platform
+    reviewed: 2026-08-01
+    docs: README.md
+    validate: true
+    # Which playbook this recipe runs. A Makefile can call anything, so the
+    # console is told rather than left to guess.
+    playbook: actions/deploy.yml
+    precheck: check
+    postcheck: check
+    recovery: maintenance-off
+    policy:
+      max_hosts: 20
+      clean_tree: false
+    params:
+      branch_name:
+        help: the branch to build and deploy
+        allow_other: true
+
+  build:
+    danger: medium
+    params:
+      branch_name: { allow_other: true }
+
+  maintenance-on:
+    danger: high
+    confirm: type-environment-name
+  maintenance-off:
+    danger: medium
+  flush-cache:
+    danger: medium
+
+  # `patch=` is read back by a shell on the host, so the value may only come
+  # from the list this tool controls: `allow_other` is left off on purpose.
+  patch-fleet:
+    danger: medium
+    params:
+      patch:
+        required: true
+        choices_from: patches
+        help: a patch file under patches/
+      state:
+        required: true
+        choices: [present, absent]
+        help: whether the patch should end up applied or removed
+
+  fail-on-purpose:
+    danger: low
+
+# A cutover objective is measured from the deployment event log; one with no
+# source says so rather than reporting a number.
+slos:
+  - label: Cutover succeeds without rollback
+    kind: cutover_success
+    environments: [staging]
+    target: "95%"
+    window: 90d
+  - label: Cutover completes within 45 minutes
+    kind: cutover_duration
+    environments: [staging]
+    limit_seconds: 2700
+    target: "90%"
+    window: 90d
+  - label: Availability, planned windows excluded
+    target: "99.9%"
+    window: 28d
+    blocked: needs a synthetic probe, which must not run on a laptop

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Launch <code>{{ target.name }}</code></h1>
+<p class="muted">{{ target.description }}</p>
+
+{% if error %}<div class="notice warn"><strong>Refused.</strong> {{ error }}</div>{% endif %}
+{% if target.danger == 'high' %}
+<div class="notice danger"><strong>High risk.</strong> This target changes what customers see.</div>
+{% endif %}
+
+<form method="post" action="/launch/{{ target.name }}" id="launch">
+  {% if target.fixed_environment %}
+  <label>Environment
+    <input type="text" value="{{ target.fixed_environment }}" readonly>
+    <small class="muted">This target names its own environment; it cannot be changed here.</small>
+  </label>
+  <input type="hidden" name="environment" value="{{ target.fixed_environment }}">
+  {% else %}
+  <label>Environment
+    <select name="environment" required>
+      <option value="">choose…</option>
+      {% for e in catalog.launchable_environments %}
+      <option value="{{ e.name }}" {% if submitted and submitted.environment == e.name %}selected{% endif %}>{{ e.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% endif %}
+
+  {% for name, p in target.params.items() %}
+  <label>{{ name }}{% if p.required %} <span class="req">required</span>{% endif %}
+    {% if choices[name] %}
+      <select name="{{ name }}" {% if p.required %}required{% endif %}>
+        <option value="">choose…</option>
+        {% for c in choices[name] %}<option value="{{ c }}" {% if submitted and submitted[name] == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+      {% if p.allow_other %}<small class="muted">free text is permitted for this field</small>{% endif %}
+    {% else %}
+      <input type="{% if p.secret %}password{% else %}text{% endif %}" name="{{ name }}"
+             value="{{ submitted[name] if submitted and submitted[name] else '' }}"
+             {% if p.required %}required{% endif %}>
+    {% endif %}
+    {% if p.help %}<small class="muted">{{ p.help }}</small>{% endif %}
+  </label>
+  {% endfor %}
+
+  {% if target.dry_run %}
+  <label class="inline"><input type="checkbox" name="dry_run"> Dry run (<code>--check</code>)</label>
+  {% endif %}
+
+  {% if confirm == 'type-environment-name' %}
+  <label>Type the environment name to confirm
+    <input type="text" name="confirm" id="confirm" autocomplete="off" required>
+  </label>
+  {% endif %}
+
+  <div class="preview">
+    <span class="muted">Will run</span>
+    <code id="preview">make {{ target.name }} …</code>
+  </div>
+
+  <button type="submit" class="btn primary">Run</button>
+  <a class="btn" href="/actions">Cancel</a>
+</form>
+
+<script>
+(function () {
+  const form = document.getElementById('launch');
+  const preview = document.getElementById('preview');
+  const confirm = document.getElementById('confirm');
+  const target = {{ target.name | tojson }};
+
+  function render() {
+    const data = new FormData(form);
+    const parts = ['make', target];
+    const env = data.get('environment');
+    if (env) parts.push('environment=' + env);
+    for (const [k, v] of data.entries()) {
+      if (['environment', 'dry_run', 'confirm'].includes(k) || !v) continue;
+      parts.push(k + '=' + v);
+    }
+    if (data.get('dry_run')) parts.push('EXTRA=--check');
+    preview.textContent = parts.join(' ');
+  }
+
+  form.addEventListener('input', render);
+  form.addEventListener('submit', function (event) {
+    const env = new FormData(form).get('environment');
+    if (confirm && confirm.value !== env) {
+      event.preventDefault();
+      confirm.setCustomValidity('Type ' + env + ' to confirm.');
+      confirm.reportValidity();
+      confirm.setCustomValidity('');
+    }
+  });
+  render();
+})();
+</script>
+{% endblock %}

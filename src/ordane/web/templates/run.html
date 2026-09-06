@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>{{ run.name }} <span class="pill {{ run.state }}" id="state">{{ state_name(run.state) }}</span></h1>
+
+<dl class="meta">
+  <div><dt>Environment</dt><dd><code>{{ run.environment }}</code></dd></div>
+  <div><dt>Started</dt><dd title="{{ run.started }}">{{ run.started | moment }}</dd></div>
+  <div><dt>Actor</dt><dd>{{ run.actor }}</dd></div>
+  {% if run.finished %}<div><dt>Finished</dt><dd title="{{ run.finished }}">{{ run.finished | moment }} ({{ run.duration_s | took }})</dd></div>{% endif %}
+  {% if run.exit_code is not none %}<div><dt>Exit</dt><dd>{{ run.exit_code }}</dd></div>{% endif %}
+</dl>
+
+<div class="preview">
+  <span class="muted">Command</span>
+  <code id="cmd">{{ run.command }}</code>
+  <button class="btn small" onclick="navigator.clipboard.writeText(document.getElementById('cmd').textContent)">Copy</button>
+</div>
+<p class="muted small">If this console is unavailable, paste that into a terminal in <code>{{ repo }}</code>.</p>
+
+{% if live %}
+<form method="post" action="/runs/{{ run.id }}/cancel"><button class="btn warn-btn" type="submit">Cancel</button></form>
+{% endif %}
+
+{% set result = run.result %}
+{% if result.has_recap %}
+<section>
+  <h2>Result <span class="muted">— {{ result.headline }}</span></h2>
+  <table>
+    <thead><tr><th>Host</th><th class="num">ok</th><th class="num">changed</th><th class="num">failed</th><th class="num">unreachable</th><th class="num">skipped</th></tr></thead>
+    <tbody>
+    {% for h in result.hosts %}
+      <tr class="{{ 'breach' if h.bad else '' }}">
+        <td><code>{{ h.host }}</code></td>
+        <td class="num">{{ h.ok }}</td>
+        <td class="num">{{ h.changed or '' }}</td>
+        <td class="num">{{ h.failed or '' }}</td>
+        <td class="num">{{ h.unreachable or '' }}</td>
+        <td class="num muted">{{ h.skipped or '' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">{{ result.plays }} play(s), {{ result.tasks }} task(s).</p>
+</section>
+{% endif %}
+
+{% if result.failures %}
+<section>
+  <h2>Failures</h2>
+  <ul class="failures">
+    {% for f in result.failures %}
+    <li>
+      <span class="pill failed">{{ f.kind }}</span>
+      <code>{{ f.host }}</code> in <strong>{{ f.task }}</strong>
+      {% if f.message %}<div class="muted small">{{ f.message }}</div>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% if result.truncated_failures %}<p class="muted small">… and {{ result.truncated_failures }} more.</p>{% endif %}
+</section>
+{% endif %}
+
+<section>
+  <h2>Output</h2>
+  <pre id="output" class="output">{{ output | ansi | safe }}</pre>
+</section>
+
+{% if live %}
+<script>
+(function () {
+  const out = document.getElementById('output');
+  const state = document.getElementById('state');
+  const source = new EventSource('/runs/{{ run.id }}/stream');
+  let stick = true;
+
+  out.addEventListener('scroll', function () {
+    stick = out.scrollTop + out.clientHeight >= out.scrollHeight - 40;
+  });
+
+  // The stream carries raw terminal codes; the page re-renders with colour
+  // once the run finishes, so strip them rather than print them.
+  const CODES = /\x1b\[[0-9;]*[A-Za-z]/g;
+
+  source.onmessage = function (event) {
+    out.textContent += event.data.replace(CODES, '') + '\n';
+    if (stick) out.scrollTop = out.scrollHeight;
+  };
+  source.addEventListener('end', function (event) {
+    state.textContent = event.data;
+    state.className = 'pill ' + event.data;
+    source.close();
+    setTimeout(function () { window.location.reload(); }, 500);
+  });
+  source.onerror = function () { source.close(); };
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Ordane{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="/">ansible<span>console</span></a>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/actions">Actions</a>
+    <a href="/playbooks">Playbooks</a>
+    <a href="/runs">History</a>
+    <a href="/environments">Environments</a>
+  </nav>
+  <span class="repo" title="{{ repo }}">{{ repo.name }}</span>
+</header>
+
+{% if read_only %}
+<div class="notice warn">
+  <strong>Read-only — no environment has been chosen yet.</strong>
+  Nothing can be launched until one is named, which is the state a fresh control plane
+  starts in on purpose. Add a name under <code>environments.allow</code> in
+  <code>{{ config_name }}</code>, or open the desktop console and use
+  <em>Manage environments</em>.
+</div>
+{% endif %}
+
+{% if active %}
+<div class="notice live">
+  {% for run in active %}
+  <a href="/runs/{{ run.id }}"><span class="dot"></span> {{ run.run.name }} on {{ run.run.environment }} is running</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<main>
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>

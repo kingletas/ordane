@@ -1,0 +1,16 @@
+- name: Verify the serving tier agrees
+  hosts: serving
+  gather_facts: false
+  tasks:
+    - name: Read what is serving
+      ansible.builtin.command:
+        cmd: cat /tmp/release
+      register: serving
+      changed_when: false
+      failed_when: serving.rc != 0
+
+    - name: Every host serves the same release
+      ansible.builtin.assert:
+        that: serving.stdout == (hostvars[ansible_play_hosts[0]].serving.stdout)
+        fail_msg: "{{ inventory_hostname }} serves {{ serving.stdout }}, not {{ hostvars[ansible_play_hosts[0]].serving.stdout }}"
+        success_msg: "serving {{ serving.stdout }}"

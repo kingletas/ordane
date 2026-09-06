@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Environments</h1>
+<p class="muted">Read from the repository. Editing them is not built yet — see the plan's phase 5.</p>
+<table>
+  <thead><tr><th>Name</th><th>Usable on disk</th><th>Allow-listed</th><th>State</th></tr></thead>
+  <tbody>
+  {% for e in catalog.environments %}
+    <tr>
+      <td><code>{{ e.name }}</code></td>
+      <td>{% if e.usable %}yes{% else %}<span class="muted">no — {{ e.reason }}</span>{% endif %}</td>
+      <td>{% if e.allowed %}yes{% else %}<span class="muted">no</span>{% endif %}</td>
+      <td>{% if e.blocked_reason %}<span class="muted">{{ e.blocked_reason }}</span>{% else %}<span class="ok-text">launchable</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="muted small">The allow list lives in <code>.ordane.yml</code> under <code>environments.allow</code>. An environment absent from it cannot be launched against, whatever is on disk.</p>
+{% endblock %}

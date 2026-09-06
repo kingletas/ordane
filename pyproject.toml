@@ -1,0 +1,86 @@
+[project]
+name = "ordane"
+dynamic = ["version"]
+description = "A desktop console for an Ansible control plane, with or without a Makefile"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Luis Tineo", email = "code@kingletas.com" }]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+    "python-multipart>=0.0.9",
+]
+
+[project.scripts]
+ordane = "ordane.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# One literal, in the package. A second one here would be the version the
+# application prints disagreeing with the version the wheel carries.
+[tool.hatch.version]
+path = "src/ordane/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ordane"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/ordane/desktop/assets" = "ordane/desktop/assets"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "S"]
+ignore = [
+    # S101: pytest asserts are the house test style.
+    "S101",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# S603/S607: the runner spawns `make` on purpose; argv is built from a
+# validated catalog and never from a shell string.
+"src/ordane/record/runner.py" = ["S603", "S607"]
+"src/ordane/core/catalog.py" = ["S603", "S607"]
+# S603/S607: `git` is spawned with a fixed argument list and no shell, to read
+# a branch name and a porcelain status. Nothing from a form reaches it.
+"src/ordane/core/repository.py" = ["S603", "S607"]
+# S603/S607: the same `git`, with the same fixed argument list — and every URL
+# that reaches it has been through `usable_url` first, which allows four
+# transports by name rather than blocking the ones it has heard of.
+"src/ordane/core/source.py" = ["S603", "S607"]
+# S603/S607: `ansible-inventory` is spawned with a fixed argument list and no
+# shell, and the inventory path comes from the catalogue rather than a form.
+"src/ordane/core/inventory.py" = ["S603", "S607"]
+# S603/S607: the container engine is spawned with a fixed argument list and no
+# shell; the image is matched against a registry reference and the commands
+# come from the control plane's own configuration, which already runs `make`.
+"src/ordane/core/validation.py" = ["S603", "S607"]
+# E402: gi.require_version must run before the gi.repository imports it pins.
+"src/ordane/desktop/*" = ["E402"]
+# S106: a test and a smoke run type a placeholder into a credential field on
+# purpose. A scanner cannot tell a fixture from a leak; these files are about
+# not leaking, and the real values come from the environment.
+"tests/*" = ["S603", "S607", "S106"]
+# S603/S607: the smoke builds a git checkout to drive the ref picker against,
+# with a fixed argument list and no shell.
+"scripts/*" = ["S106", "S603", "S607"]
+# E501: the recap fixture is verbatim Ansible output. Wrapping it would stop
+# the parser being tested against the format it actually meets.
+"tests/test_summary.py" = ["S603", "S607", "E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,56 @@
+- name: Build the release
+  hosts: transcode[0]
+  gather_facts: false
+  vars:
+    # Trimmed, because `make deploy environment=staging` with no release_tag
+    # passes an empty string rather than leaving the variable undefined, and
+    # `default()` does not fire on an empty string.
+    release: "{{ release_tag | default('') | trim }}"
+  tasks:
+    - name: Refuse a release nobody named
+      ansible.builtin.fail:
+        msg: "release_tag is required, as -e release_tag=2026.09.06"
+      when: release | length == 0
+
+    - name: Write the artefact
+      ansible.builtin.copy:
+        dest: /tmp/release
+        content: "{{ release }}\n"
+        mode: "0644"
+
+- name: Ship it to the serving tier
+  hosts: serving
+  gather_facts: false
+  vars:
+    release: "{{ release_tag | default('') | trim }}"
+  tasks:
+    - name: Refuse a release nobody named
+      ansible.builtin.fail:
+        msg: "release_tag is required, as -e release_tag=2026.09.06"
+      when: release | length == 0
+
+    - name: Place the release
+      ansible.builtin.copy:
+        dest: /tmp/release.next
+        content: "{{ release }}\n"
+        mode: "0644"
+
+- name: Activate it
+  hosts: serving
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Swap the release into place
+      ansible.builtin.command:
+        cmd: mv /tmp/release.next /tmp/release
+      changed_when: true
+
+    - name: Say what is now serving
+      ansible.builtin.command:
+        cmd: cat /tmp/release
+      register: serving
+      changed_when: false
+
+    - name: Report it
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} is serving {{ serving.stdout }}"

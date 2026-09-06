@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+"""Ordane, running as a flatpak.
+
+`env python3` is right here and wrong in the Debian package: inside the
+sandbox the runtime's interpreter is the only one on PATH, while on a host it
+could be anything a user has put in front of it.
+"""
+
+import sys
+
+sys.path.insert(0, "/app/lib/ordane")
+from ordane.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main())

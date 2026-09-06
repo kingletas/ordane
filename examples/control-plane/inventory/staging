@@ -1,0 +1,15 @@
+{
+    "all": {
+        "children": {
+            "admin":   { "hosts": { "example-stage-admin": null } },
+            "apps":    { "hosts": { "example-stage-web1": null, "example-stage-web2": null } },
+            "builder": { "hosts": { "example-stage-builder": null } },
+            "cron":    { "hosts": { "example-stage-cron": null } },
+            "varnish": { "hosts": { "example-stage-varnish": null } }
+        },
+        "vars": { "ansible_user": "ubuntu" }
+    },
+    "web": {
+        "children": { "admin": null, "apps": null, "cron": null }
+    }
+}

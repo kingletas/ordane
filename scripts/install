@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#
+# Installs the ordane entry point into a prefix, defaulting to ~/bin.
+#
+# The tool is a Python package, so what lands in the prefix is a wrapper that
+# runs it out of this source tree through uv. That keeps one copy of the code.
+
+set -euo pipefail
+
+prefix="${1:-$HOME/bin}"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+mkdir -p "$prefix"
+
+target="$prefix/ordane"
+rm -f "$target"
+
+cat > "$target" <<WRAPPER
+#!/usr/bin/env bash
+#
+# ordane — a desktop console for an Ansible control plane.
+#
+# Installed by \`make install\` in $here. Edit the source there, then reinstall;
+# never edit this file.
+#
+# Usage:
+#     ordane serve --repo <path> [--port 8710] [--open]
+#     ordane catalog --repo <path>
+
+set -euo pipefail
+exec uv run --project "$here" ordane "\$@"
+WRAPPER
+
+chmod 0555 "$target"
+echo "installed ordane to $target"
+
+# A desktop entry and an icon, so the console is in the launcher rather than
+# only on PATH. Both are user-level; nothing here writes outside $HOME.
+app_id="com.kingletas.Ordane"
+apps="$HOME/.local/share/applications"
+icons="$HOME/.local/share/icons/hicolor/scalable/apps"
+mkdir -p "$apps" "$icons"
+install -m 0644 "$here/packaging/$app_id.desktop" "$apps/$app_id.desktop"
+install -m 0644 "$here/packaging/$app_id.svg" "$icons/$app_id.svg"
+echo "installed the desktop entry and icon"
+
+# Without these the launcher shows a stale name and a missing icon until the
+# session is restarted. Neither is fatal, so neither stops the install.
+command -v update-desktop-database > /dev/null && update-desktop-database -q "$apps" || true
+command -v gtk-update-icon-cache > /dev/null \
+	&& gtk-update-icon-cache -qtf "$HOME/.local/share/icons/hicolor" 2> /dev/null || true
+
+echo "source stays in $here — edit there and reinstall"

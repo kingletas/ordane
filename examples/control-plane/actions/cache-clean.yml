@@ -1,0 +1,7 @@
+---
+- name: Deploy a built release to the web fleet
+  hosts: web
+  tasks:
+    - name: Report that this playbook reaches nothing
+      ansible.builtin.debug:
+        msg: This example control plane has no hosts.

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Run history</h1>
+{% if runs %}
+<table>
+  <thead><tr><th>Started</th><th>Kind</th><th>What</th><th>Environment</th><th>Duration</th><th>Result</th><th>What Ansible reported</th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+    <tr>
+      <td><a href="/runs/{{ r.id }}" title="{{ r.started }}">{{ r.started | moment }}</a></td>
+      <td class="muted">{{ r.kind }}</td>
+      <td>{{ r.name }}</td>
+      <td><code>{{ r.environment }}</code></td>
+      <td>{{ r.duration_s | took }}</td>
+      <td><span class="pill {{ r.state }}">{{ r.state }}</span>{% if r.exit_code is not none %} <span class="muted">exit {{ r.exit_code }}</span>{% endif %}</td>
+      <td class="muted small">{{ r.result.headline }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No runs recorded yet.</p>
+{% endif %}
+{% endblock %}

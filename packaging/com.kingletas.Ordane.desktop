@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Ordane
+GenericName=Deployment console
+Comment=Run and record deployments from an Ansible control plane
+Exec=ordane
+Icon=com.kingletas.Ordane
+Terminal=false
+Categories=Development;
+Keywords=ansible;deploy;deployment;release;devops;make;
+StartupNotify=true
+StartupWMClass=ordane

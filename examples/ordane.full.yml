@@ -1,0 +1,213 @@
+# Every key Ordane reads, in one file, with what each one decides.
+#
+# This is a reference rather than a starting point. A real control plane needs
+# almost none of it: `environments.allow` is the only key without which nothing
+# can be launched, and everything else has a working default.
+#
+# Copy `.ordane.yml` from examples/control-plane/ if you want somewhere to
+# start. Copy from here when you want to know what a key is called.
+#
+# `ordane doctor --repo <path>` reads this file and says what it found.
+
+# What to call this control plane in a history several people read. Without
+# one the name comes from the git remote, and failing that from the folder,
+# which is the case the doctor warns about: two people can easily have two
+# different repositories in folders of the same name.
+control_plane: you/control-plane
+
+# Which environments may be launched against. Nothing runs until a name is
+# here, and an empty list is the right state to leave this in until you mean it.
+environments:
+  allow: [staging]
+
+  # Where to look for environments when `make help` does not list them.
+  # Each is a glob, relative to the repository root. Defaults to the five below.
+  discover:
+    - inventory/*
+    - inventories/*
+    - environments/*
+    - inventory/*.yml
+    - inventories/*.yml
+
+  # Environments this file declares outright, for a control plane whose
+  # inventory lives somewhere nothing here would look.
+  names: [staging, production]
+
+  # Where a declared environment's inventory is. `{environment}` is replaced.
+  inventory: "inventory/{environment}"
+
+# How runs get driven and named.
+
+# `make` or `ansible`. Omit it and the repository decides: a Makefile means
+# make, and playbooks with no Makefile mean ansible-playbook directly.
+driver: make
+
+# The variable a target reads to know where it runs. The console assigns it on
+# the command line, and make exports it into every recipe.
+environment_var: environment
+
+# What a run locks so two people cannot collide. `target` lets two people run
+# different runbooks against one environment; `environment` lets neither.
+lock: target
+
+# How a bare playbook is run, when there is no Makefile. `{playbook}` and
+# `{environment}` are substituted; every other element is passed through as-is.
+playbook_command: [bin/run-playbook, "{playbook}"]
+
+# How a playbook is run when the console drives ansible-playbook itself.
+ansible_command: [ansible-playbook, -i, "inventory/{environment}", "{playbook}"]
+
+# How a read-only question is asked of a host group. `ansible`, not
+# ansible-playbook: a question has no playbook.
+ansible_probe_command: [ansible, "{group}", -i, "inventory/{environment}", -m, "{module}"]
+
+# Which files are playbooks, for the catalogue and for reading composition.
+playbooks:
+  - actions/*.yml
+  - playbooks/*/playbook.yml
+
+# Configure Ansible itself, for a control plane with no ansible.cfg of its own.
+# Each key is an environment variable name, set on the run, so these add to
+# whatever ansible.cfg is found rather than replacing it.
+#
+# ANSIBLE_CONFIG is refused. It replaces the repository's config outright, so a
+# plane whose config sets vault_password_file would quietly stop decrypting.
+# A setting whose value is a credential is refused too, since this file gets
+# committed; ANSIBLE_VAULT_PASSWORD_FILE names a path, so it is fine.
+ansible:
+  ANSIBLE_ROLES_PATH: ./roles
+  ANSIBLE_INVENTORY_ENABLED: host_list,script,yaml,ini
+  ANSIBLE_PYTHON_INTERPRETER: /usr/bin/python3
+  ANSIBLE_TIMEOUT: 60
+
+# How the catalogue is arranged. Groups appear in the order you declare them,
+# in all three front ends, because that order says something about how the work
+# is done. A target in no group ends up in `Other`.
+groups:
+  Release: [deploy, activate]
+  Site state: [maintenance-on, maintenance-off]
+  Checks: [check]
+
+# Targets to leave out of the console without removing them from the Makefile.
+hidden: [help, install]
+
+# What each target is, beyond the description `make help` prints.
+targets:
+
+  deploy:
+    # low, medium or high. High asks you to type the environment name.
+    danger: high
+    # Counts as a release, for the delivery measures.
+    deploy: true
+    # Counts as a cutover — a moment customers can see.
+    cutover: true
+    # Offers a Dry run switch, which adds --check.
+    dry_run: true
+    # `type-environment-name` is the only mode; anything else means no prompt.
+    confirm: type-environment-name
+
+    # --- the runbook: who owns it, what proves it, what undoes it ---
+    owner: Platform
+    reviewed: 2026-09-01
+    docs: https://example.internal/runbooks/deploy
+    # Another target that must pass before this one runs.
+    precheck: check
+    # Another that runs after, and says whether it worked.
+    postcheck: check
+    # Named rather than assumed. An undo that is assumed is worse than one
+    # that is absent, because somebody plans around it.
+    recovery: rollback
+    # Run the declared check suite before the precheck.
+    validate: true
+    # Which playbook this recipe runs, when a `make` recipe could call anything.
+    playbook: actions/deployment.yml
+
+    # --- refusals: conditions under which the console will not launch ---
+    policy:
+      # Refuse when the environment holds more hosts than this.
+      max_hosts: 12
+      # Refuse unless the checkout is on one of these. Globs allowed.
+      refs: [main, "release/*"]
+      # Refuse from a dirty working tree.
+      clean_tree: true
+
+    # --- what the form asks for ---
+    params:
+      version:
+        required: true
+        help: The release tag to deploy
+      channel:
+        choices: [canary, full]
+        # Offer the list but allow anything else as well.
+        allow_other: false
+      # Masked in the preview, the record, the argv and the output.
+      token:
+        secret: true
+      host:
+        # A list read from somewhere this tool controls, rather than typed.
+        choices_from: inventory
+
+  maintenance-on:
+    danger: medium
+    cutover: true
+
+  check:
+    danger: low
+
+  rollback:
+    danger: high
+    confirm: type-environment-name
+
+  # A shortcut that names its own environment inside the recipe. Declare it, or
+  # the allow list is checked against whatever the form said while the run
+  # reaches somewhere else entirely.
+  stage:
+    environment: staging
+
+# Checks this control plane runs against itself, in a container: read-only, no
+# network, and as you rather than root. A check that needs to write to the
+# repository or reach a host is not a check, it is a deploy.
+validation:
+  engine: docker
+  image: python:3.12-slim
+  checks:
+    - name: Playbooks parse
+      run: ansible-playbook --syntax-check actions/deployment.yml
+    - name: Inventory reads
+      run: ansible-inventory -i inventory/staging --list
+
+# Which task tells you what got through to Slack, PagerDuty and the rest. Your
+# playbook already notifies, which is where the credentials belong. Name the
+# debug task that reports what landed and the console reads it back instead of
+# leaving it in four hundred lines of output.
+notifications:
+  task: Report which notifications landed
+
+# What counts as a release for the delivery measures. Leave it out and only
+# `production` counts. A release to a throwaway fleet should never move a
+# number that is supposed to mean something.
+metrics:
+  environments: [production]
+
+# What this estate holds itself to. `kind` is `cutover_success` or
+# `cutover_duration`; an objective with neither is unmeasurable, and `blocked:`
+# is where you say what it would take. That is not a placeholder to fill in
+# later with a plausible figure: an objective reporting a number it cannot
+# source is worse than one admitting it has none.
+slos:
+  - label: Cutover succeeds without rollback
+    kind: cutover_success
+    target: "95%"
+    window: 90d
+    environments: [production]
+
+  - label: Cutover completes within 45 minutes
+    kind: cutover_duration
+    limit_seconds: 2700
+    target: "90%"
+    window: 90d
+
+  - label: Availability, planned windows excluded
+    target: "99.9%"
+    window: 28d
+    blocked: needs a synthetic probe, which must not run on a laptop

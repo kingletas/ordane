@@ -1,0 +1,31 @@
+# Reached through the docker connection, so there is no sshd and no key.
+# The interpreter is named rather than discovered: this image keeps it under
+# /usr/local, and a wrong guess reports "you probably need to set the interpreter".
+[all:vars]
+ansible_connection=community.docker.docker
+ansible_python_interpreter=/usr/local/bin/python3
+fleet_tier=staging
+
+[edge]
+stage-edge-1
+
+[api]
+stage-api-1
+
+[transcode]
+stage-transcode-1
+
+[queue]
+stage-queue-1
+
+[database]
+stage-db-1
+
+# The tier a release is activated on, as opposed to the tier that carries it.
+[serving:children]
+edge
+api
+
+[data:children]
+queue
+database

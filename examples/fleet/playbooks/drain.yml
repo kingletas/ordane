@@ -1,0 +1,10 @@
+- name: Take an edge out of rotation
+  hosts: edge
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Mark it drained
+      ansible.builtin.copy:
+        dest: /tmp/drained
+        content: "drained\n"
+        mode: "0644"

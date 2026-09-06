@@ -1,0 +1,72 @@
+# The fleet example. Everything here is optional except `environments.allow`.
+#
+# This same file works whether or not the Makefile is present. With it, Ordane
+# runs `make <target> environment=<name>`; without it, the playbooks below are
+# the catalogue and it runs `ansible-playbook` itself. See README.md.
+
+control_plane: ordane/fleet
+
+environments:
+  allow: [staging]
+  names: [staging, production]
+  inventory: "inventory/{environment}"
+
+# Only used when there is no Makefile. Harmless when there is one.
+playbooks:
+  - playbooks/*.yml
+
+groups:
+  Release: [deploy, verify]
+  Rotation: [drain, restore]
+  Checks: [check]
+  Fleet: [up, down]
+
+hidden: [help, guard]
+
+targets:
+  check:
+    danger: low
+
+  deploy:
+    danger: high
+    deploy: true
+    cutover: true
+    dry_run: true
+    confirm: type-environment-name
+    owner: Platform
+    reviewed: 2026-09-01
+    precheck: check
+    postcheck: verify
+    recovery: restore
+    playbook: playbooks/deploy.yml
+    policy:
+      # Production is 8 hosts; anything larger is not this fleet.
+      max_hosts: 12
+      clean_tree: true
+    params:
+      release_tag:
+        required: true
+        help: The release to build and activate, such as 2026.09.06
+
+  verify:
+    danger: low
+    playbook: playbooks/verify.yml
+
+  drain:
+    danger: medium
+    cutover: true
+    playbook: playbooks/drain.yml
+
+  restore:
+    danger: medium
+    playbook: playbooks/restore.yml
+
+metrics:
+  environments: [production]
+
+slos:
+  - label: Deploy succeeds without a restore
+    kind: cutover_success
+    target: "95%"
+    window: 90d
+    environments: [production]

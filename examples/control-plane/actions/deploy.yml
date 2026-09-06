@@ -1,0 +1,15 @@
+---
+# Composed the way a real one is: roles imported before the run starts, task
+# files included while it goes. Reading this file is how the console can say
+# which half of a preview it is sure of.
+- name: Deploy a built release to the web fleet
+  hosts: web
+  roles:
+    - { role: example-role-packaging }
+    - example-role-deploy
+  tasks:
+    - name: Preflight
+      ansible.builtin.include_tasks: tasks/preflight.yml
+    - name: Report that this playbook reaches nothing
+      ansible.builtin.debug:
+        msg: This example control plane has no hosts.

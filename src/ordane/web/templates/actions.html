@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Actions</h1>
+<p class="muted">Derived from <code>make help</code>. Write a <code>## target: description</code> line and it appears here.</p>
+
+{% for group, targets in groups.items() %}
+<section>
+  <h2>{{ group }}</h2>
+  <table>
+    <thead><tr><th>Target</th><th>What it does</th><th></th></tr></thead>
+    <tbody>
+    {% for t in targets %}
+      <tr>
+        <td><code>{{ t.name }}</code>{% if danger(t.danger) %} <span class="pill danger-{{ t.danger }}" title="{{ danger_note(t.danger) }}">{{ danger(t.danger) }}</span>{% endif %}</td>
+        <td>{{ t.description }}</td>
+        <td class="right">{% if read_only %}<span class="muted">read-only</span>{% else %}<a class="btn" href="/launch/{{ t.name }}">Launch</a>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endfor %}
+{% endblock %}

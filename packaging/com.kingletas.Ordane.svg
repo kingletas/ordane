@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A play control inside a terminal frame: this runs things, and it is a
+     console. Drawn flat so it reads at 32 px as well as at 256. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d5a73"/>
+      <stop offset="1" stop-color="#26384a"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="16" width="112" height="96" rx="16" fill="url(#ground)"/>
+  <rect x="8" y="16" width="112" height="26" rx="16" fill="#4a6a86"/>
+  <rect x="8" y="30" width="112" height="12" fill="#4a6a86"/>
+  <circle cx="26" cy="29" r="4.5" fill="#f0837c"/>
+  <circle cx="42" cy="29" r="4.5" fill="#ecc06c"/>
+  <circle cx="58" cy="29" r="4.5" fill="#8fd48f"/>
+  <path d="M50 56 l38 22 -38 22 z" fill="#f9f4e7"/>
+</svg>

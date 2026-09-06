@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Playbooks</h1>
+<p class="muted">Runs through <code>bin/run-playbook</code>, which resolves the environment and passes these flags to <code>ansible-playbook</code>.</p>
+
+{% if error %}<div class="notice warn"><strong>Refused.</strong> {{ error }}</div>{% endif %}
+
+<form method="post" action="/playbooks">
+  <label>Playbook
+    <select name="playbook" required>
+      <option value="">choose…</option>
+      {% for p in catalog.playbooks %}<option value="{{ p.path }}">{{ p.label }}</option>{% endfor %}
+    </select>
+  </label>
+
+  <label>Environment
+    <select name="environment" required>
+      <option value="">choose…</option>
+      {% for e in catalog.launchable_environments %}<option value="{{ e.name }}">{{ e.name }}</option>{% endfor %}
+    </select>
+  </label>
+
+  <label class="inline"><input type="checkbox" name="check" checked> Dry run (<code>--check</code>)</label>
+  <label class="inline"><input type="checkbox" name="diff"> Show diffs (<code>--diff</code>)</label>
+
+  <label>Limit to hosts <input type="text" name="limit" placeholder="apps, or a hostname"></label>
+  <label>Tags <input type="text" name="tags" placeholder="comma separated"></label>
+  <label>Skip tags <input type="text" name="skip_tags" placeholder="comma separated"></label>
+  <label>Verbosity
+    <select name="verbosity">
+      <option value="0">normal</option><option value="1">-v</option>
+      <option value="2">-vv</option><option value="3">-vvv</option><option value="4">-vvvv</option>
+    </select>
+  </label>
+
+  <button type="submit" class="btn primary">Run</button>
+</form>
+{% endblock %}

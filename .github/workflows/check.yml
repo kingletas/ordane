@@ -1,0 +1,93 @@
+# What a commit has to pass, run somewhere other than the machine that wrote it.
+#
+# `make check` is the gate. The other two jobs install and run each package: one
+# that builds and cannot start is the failure a test suite cannot see.
+#
+# `make smoke` is not here. It drives the real window and was measured flaky on a
+# runner, and a gate that fails at random gets re-run rather than read. `make ci`
+# runs it before a push.
+#
+# Actions are pinned to a commit SHA, because a tag can be moved by whoever owns
+# the action.
+
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only. Nothing here writes to the repository, publishes, or needs a token
+# with more than the checkout.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint, tests and metadata
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      # A malformed .desktop file does not error -- the launcher silently
+      # ignores it and the application never appears -- so the validator is
+      # part of the gate rather than a convenience.
+      - name: Install the desktop entry validator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends desktop-file-utils
+
+      - name: Run the gate
+        run: make check
+
+  package:
+    name: the deb installs and runs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the package, install it, and ask it its version
+        run: |
+          make deb
+          sudo apt-get update -qq
+          sudo apt-get install -y ./dist/ordane_*_all.deb
+          declared="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/ordane/__init__.py)"
+          ordane --version | grep -Fx "ordane ${declared}"
+
+  flatpak:
+    name: the flatpak installs and runs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install flatpak-builder and the GNOME runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y flatpak flatpak-builder
+          sudo flatpak remote-add --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y --noninteractive flathub \
+            org.gnome.Platform//50 org.gnome.Sdk//50
+
+      - name: Build it, install it, and prove it carries its dependencies
+        run: |
+          flatpak-builder --disable-rofiles-fuse --force-clean --repo=repo \
+            build packaging/com.kingletas.Ordane.yml
+          flatpak build-bundle repo ordane.flatpak com.kingletas.Ordane
+          flatpak install -y --user --noninteractive ordane.flatpak
+          declared="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/ordane/__init__.py)"
+          flatpak run --command=ordane com.kingletas.Ordane --version \
+            | grep -Fx "ordane ${declared}"
+

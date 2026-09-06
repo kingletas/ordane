@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+#
+# Builds a .deb of Ordane into dist/.
+#
+# The package is the Python source plus a launcher, a desktop entry and an
+# icon. It depends on the two libraries the desktop and the engine actually
+# import -- python3-gi and python3-yaml -- and on the GTK typelibs. The web
+# front end's dependencies are not packaged: `ordane serve` says what is missing
+# and points at the terminal.
+#
+# Usage:
+#     scripts/build-deb [OUTPUT_DIR]
+#
+# Environment overrides:
+#     ARCH      the package architecture (default: all)
+
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+out="${1:-$here/dist}"
+arch="${ARCH:-all}"
+
+version="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' "$here/src/ordane/__init__.py")"
+test -n "$version" || { echo "could not read the version"; exit 1; }
+
+stage="$(mktemp -d)"
+trap 'rm -rf "$stage"' EXIT
+
+# The package tree, exactly as it will land on disk.
+install -d "$stage/DEBIAN"
+install -d "$stage/usr/bin"
+install -d "$stage/usr/lib/ordane"
+install -d "$stage/usr/share/applications"
+install -d "$stage/usr/share/icons/hicolor/scalable/apps"
+install -d "$stage/usr/share/doc/ordane"
+
+cp -r "$here/src/ordane" "$stage/usr/lib/ordane/ordane"
+# Nothing compiled and nothing cached: a .pyc built here is wrong everywhere else.
+find "$stage/usr/lib/ordane" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
+
+install -m 0644 "$here/packaging/com.kingletas.Ordane.desktop" \
+    "$stage/usr/share/applications/com.kingletas.Ordane.desktop"
+install -m 0644 "$here/packaging/com.kingletas.Ordane.svg" \
+    "$stage/usr/share/icons/hicolor/scalable/apps/com.kingletas.Ordane.svg"
+install -m 0644 "$here/README.md"    "$stage/usr/share/doc/ordane/README.md"
+install -m 0644 "$here/CHANGELOG.md" "$stage/usr/share/doc/ordane/changelog.md"
+install -m 0644 "$here/LICENSE"      "$stage/usr/share/doc/ordane/copyright"
+
+cat > "$stage/usr/bin/ordane" <<'LAUNCHER'
+#!/usr/bin/python3
+"""Ordane, installed from a Debian package.
+
+The interpreter is named absolutely rather than found through `env`. A machine
+with pyenv or a virtualenv early on PATH resolves `env python3` to something
+that is not the one this package declared a dependency on, and the failure is
+an ImportError about datetime rather than anything to do with Ordane.
+"""
+import sys
+
+sys.path.insert(0, "/usr/lib/ordane")
+from ordane.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+LAUNCHER
+chmod 0755 "$stage/usr/bin/ordane"
+
+# Installed-Size is in kibibytes, and dpkg does not work it out for you.
+size="$(du -sk "$stage" | cut -f1)"
+
+cat > "$stage/DEBIAN/control" <<CONTROL
+Package: ordane
+Version: $version
+Section: devel
+Priority: optional
+Architecture: $arch
+Maintainer: Luis Tineo <code@kingletas.com>
+Installed-Size: $size
+Depends: python3 (>= 3.12), python3-gi, python3-yaml, gir1.2-gtk-4.0, gir1.2-adw-1
+Recommends: ansible, make
+Suggests: docker.io
+Homepage: https://github.com/kingletas/ordane
+Description: Desktop console for an Ansible control plane
+ Ordane shows the exact command before it runs, runs it, streams the output
+ and keeps a record of every run, so a control plane repository stops having
+ no memory of what was deployed from it.
+ .
+ It reads the repository as it already is. With a Makefile it drives that,
+ taking the targets from "make help"; without one the playbooks are the
+ catalogue and it runs ansible-playbook directly.
+ .
+ There is no server, no daemon and no login. This is a prototype: it works
+ and it is tested, but the interfaces will move.
+CONTROL
+
+mkdir -p "$out"
+package="$out/ordane_${version}_${arch}.deb"
+dpkg-deb --build --root-owner-group "$stage" "$package" >/dev/null
+echo "built $package"
+dpkg-deb --info "$package" | sed -n '2,8p'

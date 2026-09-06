@@ -1,0 +1,87 @@
+# A fleet to point Ordane at, big enough to be worth looking at.
+#
+# Fourteen containers standing in for a video platform: edges, an API tier,
+# transcoders, a queue and a database, in a staging shape and a production one.
+# Every one sleeps, so the whole fleet costs a few megabytes of memory and
+# starts in seconds. Nothing listens and nothing is published. The image has
+# Python in it because Ansible modules need one on the far side.
+#
+#   docker compose -f examples/fleet/docker-compose.yml up -d
+#   docker compose -f examples/fleet/docker-compose.yml down
+#
+# Ansible reaches them with community.docker's `docker` connection, so there is
+# no sshd, no key to generate and nothing to trust.
+#
+# `container_name` is set on every service because the inventory names these
+# hosts. Without it compose would call them `ordane-fleet-stage-edge-1-1`, and
+# an inventory full of that is unreadable.
+
+name: ordane-fleet
+
+x-host: &host
+  image: python:3.12-alpine
+  command: ["sleep", "infinity"]
+  init: true
+  # A fleet member should not be able to take the workstation down with it.
+  mem_limit: 32m
+  pids_limit: 64
+  restart: "no"
+
+services:
+  # --- staging ---
+  stage-edge-1:
+    <<: *host
+    container_name: stage-edge-1
+
+  stage-api-1:
+    <<: *host
+    container_name: stage-api-1
+
+  stage-transcode-1:
+    <<: *host
+    container_name: stage-transcode-1
+
+  stage-queue-1:
+    <<: *host
+    container_name: stage-queue-1
+
+  stage-db-1:
+    <<: *host
+    container_name: stage-db-1
+
+  # --- production ---
+  prod-edge-1:
+    <<: *host
+    container_name: prod-edge-1
+
+  prod-edge-2:
+    <<: *host
+    container_name: prod-edge-2
+
+  prod-api-1:
+    <<: *host
+    container_name: prod-api-1
+
+  prod-api-2:
+    <<: *host
+    container_name: prod-api-2
+
+  prod-api-3:
+    <<: *host
+    container_name: prod-api-3
+
+  prod-transcode-1:
+    <<: *host
+    container_name: prod-transcode-1
+
+  prod-transcode-2:
+    <<: *host
+    container_name: prod-transcode-2
+
+  prod-queue-1:
+    <<: *host
+    container_name: prod-queue-1
+
+  prod-db-1:
+    <<: *host
+    container_name: prod-db-1

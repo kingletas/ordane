@@ -1,0 +1,9 @@
+# Everything in one container, which is what makes this demo reach nothing.
+[builder]
+example-docker
+
+[web]
+example-docker
+
+[all:vars]
+ansible_connection=local

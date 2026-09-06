@@ -1,0 +1,20 @@
+
+build/
+.demo-state/
+dist/
+*.egg-info/
+examples/control-plane/docs/dora/deployments.jsonl
+.flatpak-build/
+.flatpak-builder/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+# Rebuilt by `make seed` every time the demo opens.
+.ruff_cache/
+.venv/
+# Written by the console when the demo is used.
+
+# A bare `docker` or `production` pattern in a global excludes file matches these
+# inventories by name. Without the negations the examples ship with no hosts.
+!examples/control-plane/inventory/docker
+!examples/fleet/inventory/production

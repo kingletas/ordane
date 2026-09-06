@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+#
+# Validates the desktop entry, when the validator is installed.
+#
+# A malformed .desktop file does not error: the launcher silently ignores it,
+# so the application simply never appears. That is exactly the kind of failure
+# a gate is for.
+
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+entry="$here/packaging/com.kingletas.Ordane.desktop"
+icon="$here/packaging/com.kingletas.Ordane.svg"
+
+test -f "$entry" || { echo "missing $entry"; exit 1; }
+test -f "$icon" || { echo "missing $icon"; exit 1; }
+
+# The Icon name must match the icon's basename, or the launcher shows a blank.
+declared="$(sed -n 's/^Icon=//p' "$entry")"
+expected="$(basename "$icon" .svg)"
+if [ "$declared" != "$expected" ]; then
+	echo "the desktop entry declares Icon=$declared but the icon is $expected.svg"
+	exit 1
+fi
+
+if command -v desktop-file-validate > /dev/null; then
+	desktop-file-validate "$entry"
+	echo "desktop entry valid"
+else
+	echo "desktop-file-validate is not installed; the entry was not validated"
+fi

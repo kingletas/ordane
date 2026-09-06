@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Dashboard</h1>
+
+<section>
+  <h2>Delivery</h2>
+  <div class="cards">
+    {% for m in snapshot.measures %}
+    <div class="card {{ m.status }}">
+      <div class="label">{{ measure_name(m.key, m.label) }}</div>
+      {% if m.has_data %}
+        <div class="value">{{ m.value }}</div>
+        <div class="detail">{{ m.detail }}</div>
+      {% else %}
+        <div class="value muted">no data</div>
+        <div class="detail">{{ m.blocked }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section>
+  <h2>Service objectives</h2>
+  {% if snapshot.slos %}
+  <table>
+    <thead><tr><th>Objective</th><th>Target</th><th>Window</th><th>Attained</th></tr></thead>
+    <tbody>
+    {% for s in snapshot.slos %}
+      <tr class="{{ s.status }}">
+        <td>{{ s.label }}</td>
+        <td>{{ s.target }}</td>
+        <td>{{ s.window }}</td>
+        <td>{% if s.has_data %}<strong>{{ s.value }}</strong>{% else %}<span class="muted">no data — {{ s.blocked }}</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No objectives are declared in <code>.ordane.yml</code>.</p>
+  {% endif %}
+</section>
+
+{% if snapshot.notes %}
+<section>
+  <h2>Why measures are missing</h2>
+  <ul class="notes">{% for n in snapshot.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<section>
+  <h2>Environments</h2>
+  <table>
+    <thead><tr><th>Environment</th><th>State</th></tr></thead>
+    <tbody>
+    {% for e in catalog.environments %}
+      <tr>
+        <td><code>{{ e.name }}</code></td>
+        <td>{% if e.blocked_reason %}<span class="muted">{{ e.blocked_reason }}</span>{% else %}<span class="ok-text">launchable</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Recent runs</h2>
+  {% if runs %}
+  <table>
+    <thead><tr><th>Started</th><th>What</th><th>Environment</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for r in runs %}
+      <tr>
+        <td><a href="/runs/{{ r.id }}" title="{{ r.started }}">{{ r.started | moment }}</a></td>
+        <td>{{ r.name }}</td>
+        <td><code>{{ r.environment }}</code></td>
+        <td><span class="pill {{ r.state }}">{{ state_name(r.state) }}</span>{% if r.duration_s %} <span class="muted">{{ r.duration_s | took }}</span>{% endif %}
+            {% if r.result.headline %}<div class="muted small">{{ r.result.headline }}</div>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Nothing has run through this console yet. Every run here fills the gaps above.</p>
+  {% endif %}
+</section>
+{% endblock %}

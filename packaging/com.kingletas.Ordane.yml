@@ -1,0 +1,56 @@
+# Flatpak manifest for Ordane.
+#
+# Build and install it for the current user:
+#     make flatpak
+#
+# The runtime brings GTK 4, libadwaita and PyGObject, so the only thing this
+# manifest has to add is PyYAML and the source itself.
+#
+# The sandbox holes are the interesting part. Ordane drives `make` and
+# `ansible` on the host, reads a repository you point it at, and writes its
+# history under XDG state. A flatpak cannot do any of that from inside the
+# sandbox, so it talks to the host through the session helper. That is a large
+# permission, and it is what running your existing commands requires.
+
+app-id: com.kingletas.Ordane
+runtime: org.gnome.Platform
+runtime-version: "50"
+sdk: org.gnome.Sdk
+command: ordane
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # A control plane lives in your filesystem and is named at run time, so there
+  # is no narrower path to grant than the one you choose to open.
+  - --filesystem=home
+  # Ordane runs make, ansible and git. All three are on the host.
+  - --talk-name=org.freedesktop.Flatpak
+  # Reaching a shared InfluxDB or Neo4j, when one is configured.
+  - --share=network
+
+modules:
+  - name: pyyaml
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-index --no-build-isolation --prefix=/app .
+    sources:
+      - type: archive
+        url: https://files.pythonhosted.org/packages/54/ed/79a089b6be93607fa5cdaedf301d7dfb23af5f25c398d5ead2525b063e17/pyyaml-6.0.2.tar.gz
+        sha256: d584d9ec91ad65861cc08d42e834324ef890a082e591037abe114850ff7bbc3e
+
+  - name: ordane
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 packaging/flatpak-launcher /app/bin/ordane
+      - mkdir -p /app/lib/ordane
+      - cp -r src/ordane /app/lib/ordane/ordane
+      - install -Dm644 packaging/com.kingletas.Ordane.desktop
+        /app/share/applications/com.kingletas.Ordane.desktop
+      - install -Dm644 packaging/com.kingletas.Ordane.svg
+        /app/share/icons/hicolor/scalable/apps/com.kingletas.Ordane.svg
+    sources:
+      - type: dir
+        path: ..

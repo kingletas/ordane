@@ -1,0 +1,5 @@
+---
+# Included at run time, which is why a preview cannot be sure of it.
+- name: Report that this check reaches nothing
+  ansible.builtin.debug:
+    msg: This example control plane has no hosts.

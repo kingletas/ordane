@@ -1,0 +1,11 @@
+- name: Check the fleet answers
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Every host answers
+      ansible.builtin.ping:
+
+    - name: Report what answered
+      ansible.builtin.debug:
+        msg: "{{ ansible_play_hosts | length }} of {{ ansible_play_hosts_all | length }} answered in {{ fleet_tier }}"
+      run_once: true
