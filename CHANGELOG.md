@@ -2,6 +2,14 @@
 
 Notable changes, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1]: 2026-09-06
+
+### Fixed
+
+The window smoke test failed at random on a loaded machine. Checks read the interface a fixed pause after asking it to change, and screenshots polled for a frame instead of asking for one. Each check now waits for the condition it is about, and a frame that never arrives is reported as a screenshot not saved rather than as a failing check.
+
+Nothing in the application changed. This only affects `make smoke`, which is a development tool.
+
 ## [0.1.0]: 2026-09-06
 
 First public release. Ordane grew out of driving a real control plane and wanting a record of it; this is where that got to before it was worth showing anyone.

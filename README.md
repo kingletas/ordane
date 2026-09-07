@@ -123,7 +123,7 @@ That puts a wrapper in `~/bin` which runs this source tree through `uv`, plus a 
 A Debian package, if you would rather install it properly:
 
 ```bash
-make deb && sudo apt install ./dist/ordane_0.1.0_all.deb
+make deb && sudo apt install ./dist/ordane_*_all.deb
 ```
 
 It depends only on what the desktop and the engine actually import: `python3-gi`, `python3-yaml` and the GTK typelibs, and leaves the browser front end's dependencies out. `ordane serve` then tells you what is missing rather than failing with a traceback.
