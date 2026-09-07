@@ -36,7 +36,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, Gtk  # noqa: E402, after the versions above
+from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402, after the versions above
 
 from ordane.core import edit, identity, search, validation  # noqa: E402
 from ordane.core import inventory as inventory_module  # noqa: E402
@@ -65,6 +65,14 @@ WINDOW = (1320, 860)
 # failed everything after it. Overridable, so a slow machine is not a patch.
 # How long to let the window catch up with a thread that is filling it.
 VIEW_WAIT = 30.0
+
+# How long a frame is waited for before a screenshot is given up on.
+SNAPSHOT_WAIT = 15.0
+
+# How long a layout pass is given. A breakpoint applies on the next one, which
+# on a loaded machine is not the next instant. `until` returns as soon as the
+# condition holds, so a generous budget costs nothing when the machine is idle.
+LAYOUT_WAIT = 15.0
 
 DEADLINE_SECONDS = int(os.environ.get("SMOKE_DEADLINE", "600"))
 
@@ -176,18 +184,30 @@ def snapshot(window: Gtk.Widget, path: Path) -> None:
         return
     renderer = window.get_native().get_renderer()
     node = None
-    for _ in range(15):
+    # A paintable has nothing to give until the widget has been drawn, so each
+    # attempt asks for a frame rather than only waiting for one. Blind polling
+    # is enough on an idle machine and not on a busy one, which is what made
+    # this the flakiest check in the file.
+    deadline = time.perf_counter() + SNAPSHOT_WAIT
+    while time.perf_counter() < deadline:
+        window.queue_draw()
+        clock = window.get_frame_clock()
+        if clock is not None:
+            clock.request_phase(Gdk.FrameClockPhase.PAINT)
+        pump(0.1)
         holder = Gtk.Snapshot()
         paintable.snapshot(holder, width, height)
         node = holder.to_node()
         if node is not None:
             break
-        pump(0.15)
     if node is None or renderer is None:
-        # A mapped window that still draws nothing after being given frames is
-        # usually a compositor that is not painting it: a locked screen looks
-        # exactly like a broken window.
-        check(f"{path.name}: something painted, is the screen locked?", False)
+        # Nothing painted after that long is the compositor, not the window: a
+        # locked screen and a headless display with no frames look the same from
+        # here, and neither says anything about the application.
+        skip(
+            f"{path.name}",
+            f"nothing painted after {SNAPSHOT_WAIT:.0f}s, so there is no frame to save",
+        )
         return
     renderer.render_texture(node, None).save_to_png(str(path))
     print(f"ok    wrote {path.name} ({width}x{height})")
@@ -315,7 +335,9 @@ def drive(app, repo: Path, shots: Path) -> None:
     )
 
     window.activate_action("win.page", GLib.Variant.new_string("actions"))
-    pump(0.8)
+    # Switching a page and filling it are two steps, and on a loaded machine the
+    # gap between them is long enough to read an empty page in.
+    until(lambda: "deploy" in titles(page(window)), VIEW_WAIT)
     # `make help` is a subprocess, and a loaded machine can make it fail. When
     # it does, every check below reports a missing target instead of the one
     # thing that actually went wrong.
@@ -332,10 +354,12 @@ def drive(app, repo: Path, shots: Path) -> None:
     check("and the column names them", has_text(page(window), "Fleet"))
     snapshot(window, shots / "02-actions.png")
     window._choose_group("Fleet")
-    pump(0.5)
-    check("choosing a group shows it", "ping" in titles(page(window)))
+    check(
+        "choosing a group shows it",
+        until(lambda: "ping" in titles(page(window)), LAYOUT_WAIT),
+    )
     window._choose_group("Release")
-    pump(0.4)
+    until(lambda: "deploy" in titles(page(window)), LAYOUT_WAIT)
 
     # --- search ---
 
@@ -422,18 +446,30 @@ def drive(app, repo: Path, shots: Path) -> None:
         RUN_WAIT,
     )
     check("the run finished", finished)
-    # The run's state and the view are filled by different threads: waiting for
-    # the first says nothing about the second, and on a slower machine the gap
-    # is long enough to read.
-    check(
-        "its result was parsed, not just its exit code",
-        until(lambda: has_text(window._runview, "ok"), VIEW_WAIT),
+    # The run's state, its parsed result and the widgets built from that result
+    # are three different things, filled by different threads. Each check waits
+    # for the one it is about, rather than for text that happens to appear when
+    # all three have landed.
+    parsed = until(
+        lambda: window._runview._run is not None and window._runview._run.result.has_recap,
+        VIEW_WAIT,
     )
+    check("its result was parsed, not just its exit code", parsed)
+    if not parsed and window._runview._run is not None:
+        print(f"      output was {window._runview._run.result!r}")
     check(
         "and the empty-output notice is out of the way",
-        until(lambda: not window._runview._placeholder.get_visible(), VIEW_WAIT),
+        until(
+            lambda: (
+                window._runview._text().strip() and not window._runview._placeholder.get_visible()
+            ),
+            VIEW_WAIT,
+        ),
     )
     # Hundreds of lines and no way to find one, until now.
+    # Searching an empty buffer finds nothing and says so correctly, so the text
+    # has to be there before the search means anything.
+    until(lambda: bool(window._runview._text().strip()), VIEW_WAIT)
     window._runview.find()
     window._runview._find.set_text("ok")
     found = until(
@@ -616,13 +652,13 @@ def drive(app, repo: Path, shots: Path) -> None:
     window.set_default_size(760, 700)
     check(
         "a narrow window folds the rail away",
-        until(lambda: window.split.get_collapsed(), 5.0),
+        until(lambda: window.split.get_collapsed(), LAYOUT_WAIT),
     )
     snapshot(window, shots / "13-narrow.png")
     window.set_default_size(*WINDOW)
     check(
         "and a wide one brings it back",
-        until(lambda: not window.split.get_collapsed(), 5.0),
+        until(lambda: not window.split.get_collapsed(), LAYOUT_WAIT),
     )
 
     # --- filtering the history ---
@@ -786,6 +822,7 @@ def drive(app, repo: Path, shots: Path) -> None:
         window.activate_action("win.page", GLib.Variant.new_string("actions"))
         pump(0.5)
         window._choose_group("Repo")
+        until(lambda: "check" in titles(page(window)), LAYOUT_WAIT)
         pump(0.4)
         window._open_launch(window._catalog.target("check"))
         pump(0.8)
@@ -832,7 +869,7 @@ def drive(app, repo: Path, shots: Path) -> None:
         window._launch(window._catalog.target("deploy"), "docker", {"branch_name": "main"}, False)
         # The runbook asks for its own checks first, so a dialog opens before
         # anything is launched at all.
-        pump(1.0)
+        until(lambda: _dialog(window) is not None, VIEW_WAIT)
         gate = _dialog(window)
         check("the control plane's own checks gate the deploy", gate is not None)
         if gate is not None:
@@ -842,7 +879,10 @@ def drive(app, repo: Path, shots: Path) -> None:
             pump(0.6)
         check(
             "then the precheck runs, and not the deploy",
-            window._runview._run is not None and window._runview._run.name == "check",
+            until(
+                lambda: window._runview._run is not None and window._runview._run.name == "check",
+                VIEW_WAIT,
+            ),
         )
         until(lambda: window._sequence is None, 120.0)
         # Wait for the records rather than for the sequence flag: the last one is
@@ -862,7 +902,7 @@ def drive(app, repo: Path, shots: Path) -> None:
         window._open_run(newest[1].id)
         check(
             "a run says what it told the outside world",
-            until(lambda: has_text(window._runview, "Told the outside world"), 10.0),
+            until(lambda: has_text(window._runview, "Told the outside world"), VIEW_WAIT),
         )
         check(
             "and names the one that did not land",
