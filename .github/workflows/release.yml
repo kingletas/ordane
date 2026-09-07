@@ -1,0 +1,59 @@
+name: Release
+
+# Tagging is the whole trigger: `git tag v0.1.2 && git push --tags` checks that
+# the tag, the version in the package and the changelog agree, then publishes a
+# GitHub Release whose body is that version's CHANGELOG section.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v (e.g. 0.1.2)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Work out which version this is, and check everything agrees
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          # The version is one literal in the package, which is what the
+          # application prints. A tag that disagrees with it ships one version's
+          # files under another version's name.
+          declared="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/ordane/__init__.py | head -1)"
+          if [ "$version" != "$declared" ]; then
+            echo "::error::tag says $version, the package says $declared"
+            exit 1
+          fi
+          # A release with no notes is one nobody can read, so this stops here
+          # rather than publishing an empty body.
+          packaging/release-notes.sh "$version" > /dev/null
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.pick.outputs.version }}"
+          packaging/release-notes.sh "$version" > notes.md
+          if gh release view "v${version}" >/dev/null 2>&1; then
+            echo "v${version} exists: updating its notes"
+            gh release edit "v${version}" --title "Ordane ${version}" --notes-file notes.md
+          else
+            gh release create "v${version}" --target "$GITHUB_SHA" \
+              --title "Ordane ${version}" --notes-file notes.md
+          fi
