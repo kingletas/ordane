@@ -30,9 +30,35 @@ NAVIGATION = (
     (BOTH, "Rail and menu", "The rail is open and the menu button stays in the header."),
     (RAIL, "Rail only", "The header keeps only the views."),
 )
-# The rail is a list of things done once a session, and it was permanently in
-# front of the content it describes. It is a choice now rather than the default.
-DEFAULT_NAVIGATION = MENU
+# The rail is where the places are now, so it is what a window opens with.
+DEFAULT_NAVIGATION = BOTH
+
+# What the theme follows. `system` is the default and means exactly that.
+SYSTEM = "system"
+LIGHT = "light"
+DARK = "dark"
+THEMES = (
+    (SYSTEM, "Follow the system", "Whatever this desktop is set to."),
+    (LIGHT, "Light", "The desk and its paper."),
+    (DARK, "Dark", "The instrument body, all the way out."),
+)
+
+# Rows given air, or more of them on screen.
+COMFORTABLE = "comfortable"
+COMPACT = "compact"
+DENSITIES = (
+    (COMFORTABLE, "Comfortable", "Rows are given air."),
+    (COMPACT, "Compact", "More hosts and more runs on one screen."),
+)
+
+# Every switch this window keeps, and what it is when nobody has said.
+# A preference that is stored and never read is worse than none, so each of
+# these is wired to something: see the Preferences screen for which.
+SWITCHES = {
+    "reread-on-focus": True,
+    "reopen-last": True,
+    "reduce-motion": False,
+}
 
 
 def restore(state_dir: Path) -> tuple[int, int, bool]:
@@ -55,16 +81,38 @@ def navigation(state_dir: Path) -> str:
     return chosen if chosen in {key for key, _, _ in NAVIGATION} else DEFAULT_NAVIGATION
 
 
-def folded(state_dir: Path) -> set[str]:
-    """The sections this person has folded away, so they stay folded."""
-    saved = _read(state_dir).get("folded", [])
-    return {str(one) for one in saved} if isinstance(saved, list) else set()
+def theme(state_dir: Path) -> str:
+    """Which of the three the person chose, or the system."""
+    chosen = str(_read(state_dir).get("theme", "") or "")
+    return chosen if chosen in {key for key, _, _ in THEMES} else SYSTEM
 
 
-def save_folded(state_dir: Path, key: str, is_folded: bool) -> None:
-    keys = folded(state_dir)
-    keys.add(key) if is_folded else keys.discard(key)
-    _write(state_dir, {"folded": sorted(keys)})
+def save_theme(state_dir: Path, chosen: str) -> None:
+    _write(state_dir, {"theme": chosen})
+
+
+def density(state_dir: Path) -> str:
+    chosen = str(_read(state_dir).get("density", "") or "")
+    return chosen if chosen in {key for key, _, _ in DENSITIES} else COMFORTABLE
+
+
+def save_density(state_dir: Path, chosen: str) -> None:
+    _write(state_dir, {"density": chosen})
+
+
+def switch(state_dir: Path, key: str) -> bool:
+    """One switch, falling back to what it is when nobody has said."""
+    saved = _read(state_dir).get("switches", {})
+    if isinstance(saved, dict) and key in saved:
+        return bool(saved[key])
+    return SWITCHES.get(key, False)
+
+
+def save_switch(state_dir: Path, key: str, on: bool) -> None:
+    saved = _read(state_dir).get("switches", {})
+    values = dict(saved) if isinstance(saved, dict) else {}
+    values[key] = bool(on)
+    _write(state_dir, {"switches": values})
 
 
 def save(state_dir: Path, width: int, height: int, maximised: bool) -> None:

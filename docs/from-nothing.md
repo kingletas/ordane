@@ -423,7 +423,7 @@ Which shape you have changes nothing else. The same environments, the same launc
 
 ## The four numbers everyone measures
 
-Open the Health page and you will see four cards, mostly saying `Setup needed`. This is what they are.
+Open the Delivery page and you will see four cards, most of them dormant. This is what they are.
 
 Researchers spent years looking for what separates teams that ship well from teams that do not, and landed on four numbers. They are usually called the DORA metrics, after the group that published them. You do not need to care about the name. What matters is that they are the four questions anybody senior will eventually ask you, and most teams cannot answer any of them.
 
@@ -455,7 +455,7 @@ metrics:
 ```
 
 > [!IMPORTANT]
-> A card with no source says `Setup needed` and tells you what would fill it. It never shows a zero. That is deliberate: a zero looks like a measurement, and "we have never had a failure" and "we have never recorded anything" are very different sentences.
+> A card with no source is dormant, and tells you in a sentence what would fill it. It never shows a zero. That is deliberate: a zero looks like a measurement, and "we have never had a failure" and "we have never recorded anything" are very different sentences.
 
 What Ordane cannot see. It only knows about runs launched through it. A deploy somebody did by hand in a terminal is invisible, and an outage nobody deployed through is invisible too: nothing here reads an incident tracker. Time to restore is really measuring *the deployment* being restored, not the service.
 

@@ -29,7 +29,7 @@ def _ran(repo: Path, state: Path, argv: list[str]):
     deadline = time.monotonic() + 20
     while not active.finished and time.monotonic() < deadline:
         time.sleep(0.05)
-    assert active.finished, "the run never ended"
+    assert active.finished, f"{argv} never ended within 20s (state {active.state!r})"
     return store, active
 
 
@@ -82,8 +82,9 @@ def test_a_broken_block_does_not_stop_a_run_that_was_already_allowed(tmp_path):
     repo.mkdir()
     (repo / ".ordane.yml").write_text("ansible:\n  ANSIBLE_CONFIG: ./ours.cfg\n", encoding="utf-8")
     store, active = _ran(repo, tmp_path / "state", ["true"])
-    assert store.get(active.id).exit_code == 0
-    assert store.get(active.id).settings == {}
+    record = store.get(active.id)
+    assert record.exit_code == 0, f"the run failed: {store.output(active.id)!r}"
+    assert record.settings == {}, "a block that cannot be read forced something anyway"
 
 
 def test_nothing_a_run_starts_may_page(tmp_path):

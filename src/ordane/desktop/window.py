@@ -1,4 +1,10 @@
-"""The main window: four views over one engine, and one place that refreshes them."""
+"""The main window: a rail of places, a stage, and one place that refreshes them.
+
+The rail holds places and nothing else. Everything that is a method on the
+repository — re-read it, open its configuration, export its history, check it,
+open another — is on the repository card's menu and in the command palette, so
+there is one navigation system rather than two half ones.
+"""
 
 from __future__ import annotations
 
@@ -12,9 +18,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
-from ..core import adhoc, identity, plane, recent, repository, search  # noqa: E402
+from ..core import adhoc, identity, plane, recent, repository  # noqa: E402
 from ..core import catalog as catalog_module  # noqa: E402
 from ..core import command as command_module  # noqa: E402
 from ..core import config as config_module  # noqa: E402
@@ -23,85 +29,110 @@ from ..core import inventory as inventory_module  # noqa: E402
 from ..core import runbook as runbook_module  # noqa: E402
 from ..core import validation as validation_module  # noqa: E402
 from ..core.config import CONFIG_NAME  # noqa: E402
+from ..insight import (
+    density,  # noqa: E402
+    metrics,  # noqa: E402
+)
+from ..insight import environments as env_module  # noqa: E402
 from ..insight import health as health_module  # noqa: E402
-from ..insight import metrics  # noqa: E402
 from ..insight import relaunch as relaunch_module  # noqa: E402
 from ..insight import runs as runs_module  # noqa: E402
+from ..insight import setup as setup_module  # noqa: E402
 from ..insight import stores as stores_module  # noqa: E402
+from ..insight import verdict as verdict_module  # noqa: E402
 from ..presentation.language import PLANE  # noqa: E402
 from ..presentation.text import ago as text_ago  # noqa: E402
-from ..presentation.text import day, moment, plural  # noqa: E402
+from ..presentation.text import plural  # noqa: E402
 from ..record import checks as checks_module  # noqa: E402
 from ..record import decisions as decisions_module  # noqa: E402
 from ..record import runner as runner_module  # noqa: E402
 from ..record.runner import Runner, RunnerError  # noqa: E402
 from ..record.store import RunStore, new_id  # noqa: E402
-from . import availability, geometry, storesetup  # noqa: E402
+from . import aboutpage, availability, geometry, storesetup  # noqa: E402
 from . import menu as menu_module  # noqa: E402
 from . import widgets as w  # noqa: E402
+from .actionspage import ActionsPage  # noqa: E402
 from .checks import ChecksDialog  # noqa: E402
 from .checkup import CheckupDialog  # noqa: E402
-from .dashboard import Dashboard  # noqa: E402
 from .dataset import ExportDialog  # noqa: E402
+from .deliverypage import DeliveryPage  # noqa: E402
 from .environments import EnvironmentsDialog  # noqa: E402
+from .environmentspage import EnvironmentsPage  # noqa: E402
 from .estate import Estate  # noqa: E402
-from .folding import Folding  # noqa: E402
+from .glyphs import Glyph  # noqa: E402
 from .launch import LaunchDialog  # noqa: E402
 from .objectives import ObjectivesDialog, saved_message  # noqa: E402
-from .preferences import Preferences  # noqa: E402
+from .overview import Overview  # noqa: E402
+from .palette import Entry, PaletteDialog  # noqa: E402
+from .prefspage import PrefsPage  # noqa: E402
+from .rail import Rail, Tallies  # noqa: E402
 from .refs import CloneDialog, RefsDialog  # noqa: E402
+from .runspage import RunsPage  # noqa: E402
 from .runview import RunView  # noqa: E402
-from .sidebar import Sidebar  # noqa: E402
+from .setuppage import SetupPage  # noqa: E402
+from .shortcuts import for_action  # noqa: E402
 from .trail import Trail  # noqa: E402
 
 REFRESH_SECONDS = 5
-
-# How many runs the page draws. Beyond this the reader is searching, not
-# scrolling, and the terminal front end is the better tool for it.
-HISTORY_SECTION = "run-history"
-DECISIONS_SECTION = "decisions"
-DECISIONS_SHOWN = 12
 
 # How often a sequence looks to see whether its current step has ended. Short
 # enough that a check and the operation after it feel like one action.
 STEP_POLL_MS = 250
 
-# How wide a toast is allowed to get before it wraps. A toast is a sentence,
-# and one long enough to need the whole window belongs in a notice.
 # How wide a toast may get, in pixels. It was a character count, which is a
 # guess about the font: 56 characters is 1236 px in the font a CI runner
 # has and comfortably less here, so the overlay asked for more width than
 # the window had and said so, hundreds of times.
 TOAST_WIDTH_PX = 420
 
-DECISION_ICONS = {
-    "ref": "media-playlist-repeat-symbolic",
-    "environments": "preferences-system-symbolic",
-    "objectives": "emblem-ok-symbolic",
-}
 # X11 and Wayland both number the side buttons this way, and every other
 # application on this desktop reads them as back and forward.
 MOUSE_BACK = 8
 MOUSE_FORWARD = 9
 
-RUNS_SHOWN = 60
 APP_NAME = "Ordane"
-PAGES = ("dashboard", "actions", "runs", "estate")
 
-READ_ONLY = "Read-only: no environment has been chosen yet"
+OVERVIEW = "overview"
+ACTIONS = "actions"
+RUNS = "runs"
+ENVIRONMENTS = "environments"
+ESTATE = "estate"
+DELIVERY = "delivery"
+SETUP = "setup"
+ABOUT = "about"
+PREFERENCES = "preferences"
+
+# The places in the rail, and the three screens that are reached from them.
+PLACES = (OVERVIEW, ACTIONS, RUNS, ENVIRONMENTS, ESTATE, DELIVERY)
+PAGES = (*PLACES, SETUP, ABOUT, PREFERENCES)
+
+TITLES = {
+    OVERVIEW: "Overview",
+    ACTIONS: "Actions",
+    RUNS: "Runs",
+    ENVIRONMENTS: "Environments",
+    ESTATE: "Estate",
+    DELIVERY: "Delivery",
+    SETUP: "Setup",
+    ABOUT: "About Ordane",
+    PREFERENCES: "Preferences",
+}
+
+READ_ONLY = "Read-only: no environment has been named yet"
 
 GUIDE_URL = f"{menu_module.PROJECT}/blob/main/docs/user-guide.md"
 
 
 class ConsoleWindow(Adw.ApplicationWindow):
-    """Owns the store, the runner and the four pages."""
+    """Owns the store, the runner and every place."""
 
     def __init__(self, application, settings) -> None:
         super().__init__(application=application, title=APP_NAME)
+        self.add_css_class("ordane")
         width, height, maximised = geometry.restore(settings.state_dir)
         self.set_default_size(width, height)
         # A breakpoint needs the window to declare how small it may get, and
-        # below this the rail and a command row cannot both fit.
+        # below this the rail and a place cannot both fit.
         self.set_size_request(*geometry.MINIMUM)
         if maximised:
             self.maximize()
@@ -125,13 +156,27 @@ class ConsoleWindow(Adw.ApplicationWindow):
 
         self._loaded_at = 0.0
         self._checkout = repository.Checkout()
-        self._runs_signature: tuple | None = None
+        self._runs: list = []
+        self._standings: list = []
+        self._snapshot = None
+        self._setup = None
+        self._verdict = None
+        self._actions_group = ""
+        self._runs_filter = runs_module.ALL
+        self._stores = stores_module.configured()
+        # What each environment holds, asked once and remembered. It is read
+        # off the launch path on purpose: a run must not wait on a cloud API.
+        self._inventories: dict[str, inventory_module.Inventory] = {}
+        self._sequence: _Sequence | None = None
+        self._recovery = ""
+
         self._actions()
         self._build()
         menu_module.install_accelerators(application)
+        self._apply_appearance()
         self._reload()
         if settings.page in PAGES:
-            self._stack.set_visible_child_name(settings.page)
+            self._go(settings.page)
         GLib.timeout_add_seconds(REFRESH_SECONDS, self._tick)
 
     # --- what the window can be asked to do ---
@@ -139,7 +184,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
     def _actions(self) -> None:
         """One action per thing the menu, the keyboard and a button all reach."""
         page = Gio.SimpleAction.new_stateful(
-            "page", GLib.VariantType.new("s"), GLib.Variant.new_string("dashboard")
+            "page", GLib.VariantType.new("s"), GLib.Variant.new_string(OVERVIEW)
         )
         page.connect("activate", lambda a, v: self._go(v.get_string()))
         self.add_action(page)
@@ -157,10 +202,11 @@ class ConsoleWindow(Adw.ApplicationWindow):
         self.add_action(opener)
 
         for name, handler in (
-            ("back", self._leave_run),
+            ("back", self._leave),
             ("go-back", self._go_back),
             ("go-forward", self._go_forward),
             ("find", self._focus_search),
+            ("palette", self._show_palette),
             ("refresh", self._reload),
             ("configure", self._open_config),
             ("folder", self._open_folder),
@@ -172,14 +218,14 @@ class ConsoleWindow(Adw.ApplicationWindow):
             ("export", self._export_dataset),
             ("stores-folder", self._open_stores_folder),
             ("stores", self._choose_stores),
-            ("preferences", self._show_preferences),
+            ("preferences", lambda: self._go(PREFERENCES)),
             ("open", self._open_another),
             ("clone", self._open_from_url),
             ("recover", self._run_recovery),
             ("refs", self._choose_ref),
             ("shortcuts", self._show_shortcuts),
             ("guide", self._open_guide),
-            ("about", self._show_about),
+            ("about", lambda: self._go(ABOUT)),
             ("close", self.close),
         ):
             action = Gio.SimpleAction.new(name, None)
@@ -189,12 +235,9 @@ class ConsoleWindow(Adw.ApplicationWindow):
     # --- layout ---
 
     def _build(self) -> None:
-        self._folding = Folding(self._settings.state_dir)
         self._trail = Trail()
         self._retracing = False
-        self._dashboard = Dashboard(self._open_run, self._remedy, self._folding)
-        self._actions_page = w.box(spacing=16)
-        self._runs_page = w.box(spacing=16)
+
         self._runview = RunView(
             self._cancel_run,
             self._relaunch,
@@ -203,161 +246,258 @@ class ConsoleWindow(Adw.ApplicationWindow):
             notice_task=lambda: self._config.notifications_task,
         )
 
-        self._stack = Adw.ViewStack()
-        self._stack.add_titled_with_icon(
-            self._dashboard, "dashboard", "Health", "utilities-system-monitor-symbolic"
+        self._overview = Overview(
+            on_open_run=self._open_run, on_remedy=self._remedy, on_go=self._go
         )
-        # The search has a bar of its own rather than living in the rail: it is
-        # how a control plane with thirty-five targets is used at all, and it
-        # cannot depend on a rail somebody has turned off.
-        self._search = Gtk.SearchEntry(placeholder_text="Find a target")
-        self._search.connect("search-changed", lambda *_: self._render_actions())
-        self._search_bar = Gtk.SearchBar(child=self._search, key_capture_widget=self)
-        self._search_bar.connect_entry(self._search)
-        self._stack.add_titled_with_icon(
-            w.scrolled(w.clamp(self._actions_page)),
-            "actions",
-            "Actions",
-            "media-playback-start-symbolic",
+        self._actions_page = ActionsPage(
+            on_launch=self._launch_simply,
+            on_open_full=self._open_launch,
+            on_search=self._choose_group,
         )
-        self._runs_filter = runs_module.ALL
-        self._actions_group: str | None = None
-        self._last_run = None
-        # What each environment holds, asked once and remembered. It is read
-        # off the launch path on purpose: a run must not wait on a cloud API.
-        self._inventories: dict[str, inventory_module.Inventory] = {}
-        self._sequence: _Sequence | None = None
-        self._recovery = ""
-        self._stack.add_titled_with_icon(
-            w.scrolled(w.clamp(self._runs_page)), "runs", "Runs", "document-open-recent-symbolic"
+        self._runs_page = RunsPage(
+            detail=self._runview, on_open=self._open_run, on_relaunch=self._relaunch
         )
-        # Its own view, because it is the only one that needs a network. Health
-        # reads files on this machine and keeps working when nothing is up.
+        self._environments_page = EnvironmentsPage(
+            on_manage=self._choose_environments,
+            on_ask=self._ask_hosts,
+            on_run_here=lambda _name: self._go(ACTIONS),
+        )
+        # Its own place, because it is the only one that needs a network. The
+        # rest read files on this machine and keep working when nothing is up.
         self._estate = Estate()
         self._estate._on_copied = self._toast
-        self._stack.add_titled_with_icon(
-            self._estate, "estate", "Estate", "network-server-symbolic"
+        self._delivery_page = DeliveryPage(on_remedy=self._remedy, on_go=self._go)
+        self._setup_page = SetupPage(on_remedy=self._remedy)
+        self._about_page = aboutpage.AboutPage(
+            on_copy=self._copy_details,
+            on_guide=self._open_guide,
+            on_shortcuts=self._show_shortcuts,
         )
-        # Always offered. It was hidden until a store was configured, which
-        # made the whole view invisible to anybody who did not already know it
-        # existed, and its unconfigured state is exactly where the
-        # instructions for configuring it belong.
-        self._stores = stores_module.configured()
-        self._stack.add_titled_with_icon(self._runview, "run", "Run", "utilities-terminal-symbolic")
-        self._stack.get_page(self._runview).set_visible(False)
+        self._prefs_page = PrefsPage(
+            state_dir=self._settings.state_dir,
+            on_theme=self._choose_theme,
+            on_density=self._choose_density,
+            on_switch=self._flip_switch,
+            on_navigation=self._choose_navigation,
+        )
+
+        self._stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.NONE)
+        self._stack.add_css_class("stage")
+        self._stack.add_named(self._overview, OVERVIEW)
+        # Actions scrolls as one page; Runs does not, because each of its two
+        # panes scrolls on its own and an outer scroller would fight them.
+        self._stack.add_named(w.scrolled(_well(self._actions_page)), ACTIONS)
+        self._stack.add_named(_well(self._runs_page), RUNS)
+        self._stack.add_named(self._environments_page, ENVIRONMENTS)
+        self._stack.add_named(self._estate, ESTATE)
+        self._stack.add_named(self._delivery_page, DELIVERY)
+        self._stack.add_named(self._setup_page, SETUP)
+        self._stack.add_named(self._about_page, ABOUT)
+        self._stack.add_named(self._prefs_page, PREFERENCES)
         self._stack.connect("notify::visible-child-name", self._on_page_changed)
 
-        header = Adw.HeaderBar()
-        self._switcher = Adw.ViewSwitcher(stack=self._stack, policy=Adw.ViewSwitcherPolicy.WIDE)
-        header.set_title_widget(self._switcher)
-
-        self._rail_button = Gtk.ToggleButton(
-            icon_name="sidebar-show-symbolic", tooltip_text="Show or hide the rail", active=True
-        )
-        header.pack_start(self._rail_button)
-        # Which control plane, and whether it can be read: in the chrome, so it
-        # is legible without keeping a rail open to look at it.
-        self._plane_button = w.PlaneButton(self._show_checkup)
-        header.pack_start(self._plane_button)
-        self._navigation = geometry.navigation(self._settings.state_dir)
-
-        self._hamburger = Gtk.MenuButton(
-            icon_name="open-menu-symbolic",
-            menu_model=menu_module.primary_menu(self._others()),
-            tooltip_text="Main menu",
-        )
-        header.pack_end(self._hamburger)
-        reload_button = Gtk.Button(
-            icon_name="view-refresh-symbolic", tooltip_text="Re-read the repository (Ctrl+R)"
-        )
-        reload_button.set_action_name("win.refresh")
-        header.pack_end(reload_button)
-        find = Gtk.ToggleButton(icon_name="system-search-symbolic", tooltip_text="Find a target")
-        find.bind_property(
-            "active",
-            self._search_bar,
-            "search-mode-enabled",
-            GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE,
-        )
-        header.pack_end(find)
-
-        self._notice = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
-        self._toasts = Adw.ToastOverlay()
-
-        # Running as root is a standing fact about the whole session, so it is
-        # not the notice: that one comes and goes with the repository.
-        self._actor = identity.who()
-        self._root_banner = Adw.Banner(
-            title=f"Running as root: {self._actor.summary}. {identity.ROOT_WARNING}",
-            revealed=self._actor.is_root,
-        )
-        self._root_banner.add_css_class("error")
-
-        # A repository that cannot be read is shown in place of the views rather
-        # than behind a notice over four empty pages.
+        # A repository that cannot be read is shown in place of the places
+        # rather than behind a notice over six empty ones.
         self._broken = w.box(spacing=16)
-        self._surface = Gtk.Stack()
+        self._surface = Gtk.Stack(transition_type=Gtk.StackTransitionType.NONE)
         self._surface.add_named(self._stack, "console")
         self._surface.add_named(self._broken, "broken")
+        self._surface.set_hexpand(True)
 
-        self._sidebar = Sidebar()
-        self.split = Adw.OverlaySplitView(
-            sidebar=self._sidebar, content=self._surface, max_sidebar_width=340
-        )
-        self.split.bind_property(
-            "show-sidebar",
-            self._rail_button,
-            "active",
-            GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE,
-        )
+        self._rail = Rail(self._go)
+        self._navigation = geometry.navigation(self._settings.state_dir)
+
+        self.split = Adw.OverlaySplitView(sidebar=self._rail, max_sidebar_width=280)
+        self.split.set_min_sidebar_width(236)
+
+        # The top bar belongs to the stage, not to the window: the rail is an
+        # instrument body running the whole height beside it, which is the
+        # thing that stops the two reading as one striped surface.
+        toolbar = Adw.ToolbarView()
+        toolbar.add_top_bar(self._top_bar())
+        toolbar.add_top_bar(self._search_bar)
+        toolbar.add_top_bar(self._root_banner())
+        self._notice = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
+        toolbar.add_top_bar(self._notice)
+        toolbar.set_content(self._surface)
+        self.split.set_content(toolbar)
+
+        self._toasts = Adw.ToastOverlay()
+        self._toasts.set_child(self.split)
+        self.set_content(self._toasts)
+        self.add_breakpoint(breakpoint_for(self))
 
         # Claimed on the capture phase so a row underneath cannot swallow it,
         # and on button 0 because GTK names only the first three.
         buttons = Gtk.GestureClick(button=0, propagation_phase=Gtk.PropagationPhase.CAPTURE)
         buttons.connect("pressed", self._on_mouse_button)
         self.add_controller(buttons)
-
-        toolbar = Adw.ToolbarView()
-        toolbar.add_top_bar(header)
-        toolbar.add_top_bar(self._search_bar)
-        toolbar.add_top_bar(self._root_banner)
-        toolbar.add_top_bar(self._notice)
-        toolbar.set_content(self.split)
-        self._toasts.set_child(toolbar)
-        self.set_content(self._toasts)
-        self.add_breakpoint(breakpoint_for(self))
+        self.connect("notify::is-active", self._on_focus)
         self._apply_navigation()
 
-    def _remember_page(self) -> None:
-        name = self._stack.get_visible_child_name() or ""
-        # The run view comes and goes with one run; it is not a place to
-        # return to, and putting it on the trail would make back a loop.
-        if not self._retracing and name != "run":
-            self._trail.visit(name)
+    def _top_bar(self) -> Gtk.Widget:
+        """The place you are in, what it is about, and the four things beside it."""
+        header = Adw.HeaderBar()
+        header.add_css_class("topbar")
+        header.set_title_widget(Gtk.Box())
+
+        crumb = w.row(8)
+        self._crumb = w.label("Overview", "crumb")
+        crumb.append(self._crumb)
+        self._crumb_sub = w.label("", "crumb-sub")
+        crumb.append(self._crumb_sub)
+
+        self._rail_button = Gtk.ToggleButton(
+            icon_name="sidebar-show-symbolic", tooltip_text="Show or hide the rail (Ctrl+B)"
+        )
+        self._rail_button.add_css_class("iconbtn")
+        self._rail_button.connect("toggled", self._rail_toggled)
+        header.pack_start(self._rail_button)
+        header.pack_start(crumb)
+
+        self._hamburger = Gtk.MenuButton(
+            icon_name="open-menu-symbolic",
+            menu_model=menu_module.primary_menu(self._others()),
+            tooltip_text="Main menu",
+        )
+        self._hamburger.add_css_class("iconbtn")
+        header.pack_end(self._hamburger)
+        header.pack_end(
+            w.icon_button(
+                "view-refresh-symbolic",
+                "Re-read the repository (Ctrl+R)",
+                action="win.refresh",
+            )
+        )
+        header.pack_end(self._search_button())
+
+        # The action search still has a bar of its own: it is how a control
+        # plane with thirty-five actions is used at all.
+        self._search = Gtk.SearchEntry(placeholder_text="Find an action")
+        self._search.connect("search-changed", lambda *_: self._render_actions())
+        self._search_bar = Gtk.SearchBar(child=self._search)
+        self._search_bar.connect_entry(self._search)
+        self._search_bar.set_search_mode(False)
+        return header
+
+    def _search_button(self) -> Gtk.Widget:
+        """The command surface, said out loud rather than left to be discovered."""
+        line = w.row(8)
+        line.append(Glyph("search", 13))
+        line.append(w.label("Search or run a command"))
+        line.append(w.spacer())
+        keys = w.row(3)
+        keys.append(w.keycap("Ctrl"))
+        keys.append(w.keycap("K"))
+        line.append(keys)
+        button = Gtk.Button(child=line, valign=Gtk.Align.CENTER)
+        button.add_css_class("searchbtn")
+        button.set_size_request(220, -1)
+        button.set_tooltip_text("Everything this console can do")
+        button.set_action_name("win.palette")
+        return button
+
+    def _root_banner(self) -> Gtk.Widget:
+        # Running as root is a standing fact about the whole session, so it is
+        # not the notice: that one comes and goes with the repository.
+        self._actor = identity.who()
+        banner = Adw.Banner(
+            title=f"Running as root: {self._actor.summary}. {identity.ROOT_WARNING}",
+            revealed=self._actor.is_root,
+        )
+        banner.add_css_class("error")
+        return banner
+
+    # --- appearance ---
+
+    def _apply_appearance(self) -> None:
+        self._choose_theme(geometry.theme(self._settings.state_dir))
+        self._choose_density(geometry.density(self._settings.state_dir))
+
+    def _choose_theme(self, chosen: str) -> None:
+        Adw.StyleManager.get_default().set_color_scheme(
+            {
+                geometry.LIGHT: Adw.ColorScheme.FORCE_LIGHT,
+                geometry.DARK: Adw.ColorScheme.FORCE_DARK,
+            }.get(chosen, Adw.ColorScheme.DEFAULT)
+        )
+
+    def _choose_density(self, chosen: str) -> None:
+        if chosen == geometry.COMPACT:
+            self.add_css_class("compact")
+        else:
+            self.remove_css_class("compact")
+
+    def _flip_switch(self, key: str, _on: bool) -> None:
+        """Applied as it is set: a preference that waits for a restart is a note."""
+        if key == "reduce-motion":
+            self._overview._signature = None
+            self._render(reread_catalog=False)
+
+    def _on_focus(self, *_args) -> None:
+        """Picks up commits made in an editor, when that is what was asked for."""
+        if not self.is_active():
+            return
+        if not geometry.switch(self._settings.state_dir, "reread-on-focus"):
+            return
+        if self._loaded_at and time.monotonic() - self._loaded_at < REFRESH_SECONDS:
+            return
+        self._reload()
+
+    # --- moving between places ---
+
+    def _go(self, name: str) -> None:
+        if name in PAGES:
+            self._stack.set_visible_child_name(name)
 
     def _on_page_changed(self, *_args) -> None:
-        """However the page changed: a key, an action, or the switcher clicked.
-
-        The estate used to be asked from `_go`, which the view switcher does
-        not call: clicking the tab left it on its spinner for ever.
-        """
+        """However the place changed: a key, an action, or the rail clicked."""
         name = self._stack.get_visible_child_name()
-        self._remember_page()
+        if not self._retracing and name:
+            self._trail.visit(name)
         if name in PAGES:
             self._page_action.set_state(GLib.Variant.new_string(name))
-        if name == "estate":
+        self._rail.set_current(name if name in PLACES else "")
+        self._show_crumb(name)
+        if name == ESTATE:
             # Re-read: the settings file may have been written since the window
             # opened, which is the commonest way this gets configured.
             self._stores = stores_module.configured()
             self._estate.refresh(self._stores)
+        elif name == PREFERENCES:
+            self._prefs_page.render()
+        elif name == ABOUT:
+            self._render_about()
 
-    def _go(self, name: str) -> None:
-        self._stack.set_visible_child_name(name)
+    def _show_crumb(self, name: str | None) -> None:
+        self._crumb.set_text(TITLES.get(name or "", APP_NAME))
+        said = self._context(name or "")
+        # With the rail away there is nothing else on screen naming the
+        # repository this window drives, and that is the one fact a person
+        # must never have to go and look for.
+        if not self.split.get_show_sidebar() and self._plane.name not in said:
+            said = f"{self._plane.name} · {said}" if said else self._plane.name
+        self._crumb_sub.set_text(said)
 
-    # --- back and forward, which the mouse has two buttons for ---
+    def _context(self, name: str) -> str:
+        """One phrase under the place name, and it is about this repository."""
+        catalog = self._catalog
+        if name == ACTIONS and catalog is not None:
+            return f"{plural(len(catalog.targets), 'action')} defined here"
+        if name == RUNS:
+            return f"{plural(len(self._runs), 'run')} recorded"
+        if name == ENVIRONMENTS and catalog is not None:
+            return f"{len(catalog.launchable_environments)} of {len(catalog.environments)} ready"
+        if name == ESTATE:
+            return "what the shared stores know"
+        if name == DELIVERY:
+            return ", ".join(self._config.metric_environments) or "every environment"
+        if name == SETUP and self._setup is not None:
+            return self._setup.progress_text
+        return self._plane.name
 
     def _retrace(self, page: str | None) -> None:
-        """Steps to a page without recording the step as somewhere new."""
+        """Steps to a place without recording the step as somewhere new."""
         if page is None:
             return
         self._retracing = True
@@ -367,10 +507,6 @@ class ConsoleWindow(Adw.ApplicationWindow):
             self._retracing = False
 
     def _go_back(self) -> None:
-        # The run view is not on the trail; leaving it is what back means there.
-        if self._stack.get_visible_child_name() == "run":
-            self._leave_run()
-            return
         self._retrace(self._trail.back())
 
     def _go_forward(self) -> None:
@@ -386,50 +522,194 @@ class ConsoleWindow(Adw.ApplicationWindow):
 
     def _focus_search(self) -> None:
         # On a run, the thing worth finding is a line of its output.
-        if self._stack.get_visible_child_name() == "run":
+        if self._stack.get_visible_child_name() == RUNS:
             self._runview.find()
             return
-        self._go("actions")
+        self._go(ACTIONS)
         self._search_bar.set_search_mode(True)
         self._search.grab_focus()
 
-    def _leave_run(self) -> None:
-        if self._stack.get_visible_child_name() == "run":
-            self._runview.stop()
-            self._go("runs")
-        elif self._search.get_text():
+    def _leave(self) -> None:
+        if self._search.get_text():
             self._search.set_text("")
         elif self._search_bar.get_search_mode():
             self._search_bar.set_search_mode(False)
 
-    # --- reaching outside the window ---
-
     def _toggle_rail(self) -> None:
         self.split.set_show_sidebar(not self.split.get_show_sidebar())
+        self._rail_button.set_active(self.split.get_show_sidebar())
+
+    def _rail_toggled(self, button) -> None:
+        self.split.set_show_sidebar(button.get_active())
+        self._show_crumb(self._stack.get_visible_child_name())
 
     def _apply_navigation(self) -> None:
         """The rail, the menu, or both: whichever this person keeps.
 
         The menu is never taken away on a narrow window: the rail folds there,
-        and hiding both would leave nine actions with nowhere to be reached.
+        and hiding both would leave every place with nowhere to be reached.
         """
         keeps_rail = self._navigation in (geometry.RAIL, geometry.BOTH)
         self.split.set_show_sidebar(keeps_rail)
-        self._rail_button.set_visible(keeps_rail or self.split.get_collapsed())
+        self._rail_button.set_active(keeps_rail)
         self._hamburger.set_visible(
             self._navigation in (geometry.MENU, geometry.BOTH) or not keeps_rail
         )
+        self._show_crumb(self._stack.get_visible_child_name())
 
     def _choose_navigation(self, chosen: str) -> None:
         self._navigation = chosen
         geometry.save_navigation(self._settings.state_dir, chosen)
         self._apply_navigation()
 
-    def _show_preferences(self) -> None:
-        Preferences(self._navigation, self._choose_navigation).present(self)
+    # --- the command palette ---
+
+    def _show_palette(self) -> None:
+        PaletteDialog(self._entries(), lambda entry: entry.run()).present(self)
+
+    def _entries(self) -> list[Entry]:
+        """Everything reachable, grouped the way a person asks for it.
+
+        All nine of the entries the rail used to carry are in `This repository`,
+        and none of them is in the rail.
+        """
+        found: list[Entry] = []
+        catalog = self._catalog
+        if catalog is not None:
+            for target in catalog.targets:
+                for environment in catalog.launchable_environments:
+                    if target.fixed_environment and environment.name != target.fixed_environment:
+                        continue
+                    found.append(
+                        Entry(
+                            group="Run",
+                            title=f"Run {target.name} on {environment.name}",
+                            run=lambda t=target, e=environment.name: self._launch_simply(
+                                t.name, e, False
+                            ),
+                            glyph="actions",
+                            terms=target.description,
+                        )
+                    )
+
+        for title, action, icon, terms in (
+            ("Re-read the repository", "win.refresh", "view-refresh-symbolic", "reload again"),
+            (
+                f"Open {CONFIG_NAME}",
+                "win.configure",
+                "text-x-generic-symbolic",
+                "config configuration edit",
+            ),
+            ("Show the repository folder", "win.folder", "folder-symbolic", "files directory"),
+            (
+                "Choose what runs…",
+                "win.refs",
+                "media-playlist-repeat-symbolic",
+                "ref branch tag checkout",
+            ),
+            (
+                "Manage environments…",
+                "win.environments",
+                "preferences-system-symbolic",
+                "allow production read-only",
+            ),
+            ("Set up objectives…", "win.objectives", "starred-symbolic", "slo target"),
+            (
+                "Run this repository's own checks…",
+                "win.checks",
+                "object-select-symbolic",
+                "validate suite tests",
+            ),
+            (
+                "Check that this repository is set up correctly",
+                "win.checkup",
+                "emblem-important-symbolic",
+                "doctor diagnose what is wrong setup",
+            ),
+            ("Export the history…", "win.export", "document-save-symbolic", "csv json dataset"),
+            (
+                "Point at the shared stores…",
+                "win.stores",
+                "network-server-symbolic",
+                "influx neo4j",
+            ),
+        ):
+            found.append(
+                Entry(
+                    group="This repository",
+                    title=title,
+                    run=lambda name=action: self.activate_action(name.split(".", 1)[1], None),
+                    key=_key_for(action),
+                    icon=icon,
+                    terms=terms,
+                )
+            )
+
+        for title, action, icon, terms in (
+            (
+                "Open another repository…",
+                "win.open",
+                "document-open-symbolic",
+                "switch control plane",
+            ),
+            (
+                "Clone from a git URL…",
+                "win.clone",
+                "network-workgroup-symbolic",
+                "git clone remote",
+            ),
+        ):
+            found.append(
+                Entry(
+                    group="Switch",
+                    title=title,
+                    run=lambda name=action: self.activate_action(name.split(".", 1)[1], None),
+                    key=_key_for(action),
+                    icon=icon,
+                    terms=terms,
+                )
+            )
+        for path in self._others():
+            found.append(
+                Entry(
+                    group="Switch",
+                    title=f"Open {path.name}",
+                    run=lambda one=path: self._open_repository(one),
+                    icon="folder-symbolic",
+                    terms=str(path),
+                )
+            )
+
+        for key in PAGES:
+            found.append(
+                Entry(
+                    group="Go to",
+                    title=TITLES[key],
+                    run=lambda one=key: self._go(one),
+                    key=_key_for(f"win.page::{key}"),
+                    glyph=key if key in PLACES else "",
+                    icon="" if key in PLACES else "go-next-symbolic",
+                )
+            )
+        for title, action in (
+            ("Keyboard shortcuts", "win.shortcuts"),
+            ("User guide", "win.guide"),
+        ):
+            found.append(
+                Entry(
+                    group="Go to",
+                    title=title,
+                    run=lambda name=action: self.activate_action(name.split(".", 1)[1], None),
+                    key=_key_for(action),
+                    icon="help-browser-symbolic",
+                )
+            )
+        return found
+
+    # --- reaching outside the window ---
 
     def _others(self) -> list[Path]:
-        """The control planes this machine has driven, minus the one on screen."""
+        """The repositories this machine has driven, minus the one on screen."""
         return [
             path
             for path in recent.remembered(self._settings.state_dir)
@@ -451,8 +731,6 @@ class ConsoleWindow(Adw.ApplicationWindow):
         if folder is None or folder.get_path() is None:
             return
         self._open_repository(Path(folder.get_path()))
-
-    # --- where the control plane comes from, and which ref of it runs ---
 
     def _open_from_url(self) -> None:
         """Clones beside whatever is open, then opens the clone in its own window."""
@@ -547,19 +825,35 @@ class ConsoleWindow(Adw.ApplicationWindow):
         except GLib.Error as exc:
             self._toast(f"Could not open {path}: {exc.message}")
 
+    def _copy_details(self) -> None:
+        w.copy_to_clipboard("\n".join(f"{name}: {value}" for name, value in self._about_facts()))
+        self._toast("Copied: paste these into an issue")
+
     def _filter_runs(self, key: str) -> None:
         self._runs_filter = key
         self._filter_action.set_state(GLib.Variant.new_string(key))
-        self._runs_signature = None
-        self._render(reread_catalog=False)
+        self._runs_page.ask(key)
+
+    def _choose_group(self, name: str) -> None:
+        self._actions_group = name
+        self._render_actions()
 
     def _remedy(self, name: str) -> None:
-        """A concern names what would help; this is where the window has one."""
+        """A step or a verdict names what would help; this is where it happens."""
         doing = {
-            health_module.CHOOSE_ENVIRONMENTS: self._choose_environments,
-            health_module.OPEN_CONFIG: self._open_config,
-            health_module.OPEN_RUNS: lambda: self._go("runs"),
-            health_module.CHECK: self._show_checkup,
+            setup_module.CHOOSE_ENVIRONMENTS: self._choose_environments,
+            setup_module.OPEN_CONFIG: self._open_config,
+            setup_module.OPEN_ACTIONS: lambda: self._go(ACTIONS),
+            setup_module.OPEN_ENVIRONMENTS: lambda: self._go(ENVIRONMENTS),
+            setup_module.OPEN_DELIVERY: lambda: self._go(DELIVERY),
+            setup_module.EDIT_OBJECTIVES: self._edit_objectives,
+            setup_module.CHECK: self._show_checkup,
+            "open-runs": lambda: self._go(RUNS),
+            "open-delivery": lambda: self._go(DELIVERY),
+            "open-environments": lambda: self._go(ENVIRONMENTS),
+            "open-actions": lambda: self._go(ACTIONS),
+            "edit-objectives": self._edit_objectives,
+            health_module.OPEN_RUNS: lambda: self._go(RUNS),
         }.get(name)
         if doing is not None:
             doing()
@@ -598,6 +892,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
                 command=built,
                 labels={},
                 builder=self.builder_for(environment),
+                origin=density.BY_HAND,
             )
         except (command_module.ValidationError, RunnerError) as exc:
             self._toast(str(exc))
@@ -698,7 +993,6 @@ class ConsoleWindow(Adw.ApplicationWindow):
             sequence=sequence,
             started=started,
         )
-        self._runs_signature = None
         self._render(reread_catalog=False)
 
     def _show_checkup(self) -> None:
@@ -713,16 +1007,10 @@ class ConsoleWindow(Adw.ApplicationWindow):
     def _show_shortcuts(self) -> None:
         menu_module.ShortcutsDialog().present(self)
 
-    def _show_about(self) -> None:
-        menu_module.about_dialog(self._settings.repo).present(self)
-
     # --- data ---
 
     def _reload(self) -> None:
         """Re-reads the repository, keeping the last good catalogue if it cannot.
-
-        On the estate this also asks the stores again, so it is one key for bringing any
-        view up to date.
 
         A repository that stops being readable does not empty the window; the failure is
         said out loud and the reading is not restamped.
@@ -735,10 +1023,9 @@ class ConsoleWindow(Adw.ApplicationWindow):
         except (catalog_module.CatalogError, config_module.ConfigError) as exc:
             self._catalog_error = str(exc)
         self._checkout = repository.read(self._settings.repo)
-        if self._stack.get_visible_child_name() == "estate":
+        if self._stack.get_visible_child_name() == ESTATE:
             self._stores = stores_module.configured()
             self._estate.refresh(self._stores, force=True)
-        self._runs_signature = None
         self._render()
 
     def _tick(self) -> bool:
@@ -750,7 +1037,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
 
     def _show_freshness(self) -> None:
         """How old the reading is, or that there has never been one."""
-        state = dict(
+        self._rail.show_state(
             actor=self._actor,
             plane=self._plane,
             repo=self._settings.repo,
@@ -760,8 +1047,6 @@ class ConsoleWindow(Adw.ApplicationWindow):
             ),
             checkout=self._checkout,
         )
-        self._sidebar.show_state(**state)
-        self._plane_button.render(**state)
 
     def _render(self, reread_catalog: bool = True) -> None:
         if self._catalog is None:
@@ -769,7 +1054,6 @@ class ConsoleWindow(Adw.ApplicationWindow):
             return
 
         self._surface.set_visible_child_name("console")
-        self._switcher.set_visible(True)
 
         if self._catalog_error:
             self._show_notice(
@@ -779,7 +1063,9 @@ class ConsoleWindow(Adw.ApplicationWindow):
                 action=("What is wrong?", "win.checkup"),
             )
         elif not self._catalog.launchable_environments:
-            self._show_notice(READ_ONLY, action=("Manage environments…", "win.environments"))
+            self._show_notice(
+                READ_ONLY, level="setup", action=("Manage environments…", "win.environments")
+            )
         else:
             self._notice.set_reveal_child(False)
 
@@ -789,11 +1075,9 @@ class ConsoleWindow(Adw.ApplicationWindow):
             for index, run in enumerate(runs):
                 if run.id == active.id:
                     runs[index] = active.run
-        # Kept so the Actions header does not read the history again on every
-        # keystroke in the search field.
-        self._last_run = runs[0] if runs else None
+        self._runs = runs
 
-        snapshot = metrics.snapshot(
+        self._snapshot = metrics.snapshot(
             history_path=self._settings.history_path,
             events_path=self._settings.events_path,
             runs=runs,
@@ -801,48 +1085,135 @@ class ConsoleWindow(Adw.ApplicationWindow):
             scope=self._config.metric_environments,
         )
         health = health_module.assess(
-            catalog=self._catalog, config=self._config, snapshot=snapshot, runs=runs
+            catalog=self._catalog, config=self._config, snapshot=self._snapshot, runs=runs
         )
-        self._dashboard.render(
+        self._setup = setup_module.assess(
             catalog=self._catalog,
-            snapshot=snapshot,
-            health=health,
+            config=self._config,
+            snapshot=self._snapshot,
             runs=runs,
             repo=self._settings.repo,
+            history_path=self._settings.history_path,
+        )
+        self._verdict = verdict_module.decide(
+            catalog=self._catalog,
+            health=health,
+            setup=self._setup,
+            runs=runs,
+            error=self._catalog_error,
+        )
+        self._standings = env_module.standings(
+            environments=self._catalog.environments,
+            runs=runs,
+            hosts={
+                name: len(answer.hosts)
+                for name, answer in self._inventories.items()
+                if answer.known
+            },
+        )
+
+        self._overview.render(
+            catalog=self._catalog,
+            snapshot=self._snapshot,
+            verdict=self._verdict,
+            setup=self._setup,
+            runs=runs,
+            standings=self._standings,
+            animate=not geometry.switch(self._settings.state_dir, "reduce-motion"),
         )
         if reread_catalog:
             self._render_actions()
-        self._render_runs(runs)
+        self._runs_page.render(runs, self._decisions.all(self._plane.name))
+        self._open_newest(runs)
+        self._environments_page.render(
+            self._standings, source=self._catalog.discovery.environment_source
+        )
+        self._delivery_page.render(
+            self._snapshot, scope=", ".join(self._config.metric_environments)
+        )
+        self._setup_page.render(self._setup)
+        self._rail.set_tallies(self._tallies(runs))
+        self._show_crumb(self._stack.get_visible_child_name())
         self._show_freshness()
 
+    def _open_newest(self, runs) -> None:
+        """The pane beside the list is never blank while there is a run to read.
+
+        It does not navigate: landing on Runs because a history exists is not
+        what anybody asked for.
+        """
+        if self._runs_page.chosen():
+            return
+        if not runs:
+            self._runview.show_nothing(
+                "Nothing has run through this console yet. The first run fills the "
+                "first gap in the delivery measures."
+            )
+            return
+        # The active run, not just the record of it: handed `None` for a run
+        # that is still going, the view has no stream to follow and no way to
+        # learn that it ended, so it says `Running` for ever while the list
+        # beside it has already moved on.
+        self._open_run(runs[0].id, navigate=False)
+
+    def _tallies(self, runs) -> Tallies:
+        """The small figures in the rail. An unknown count is nothing, never zero."""
+        catalog = self._catalog
+        hosts = sum(one.hosts or 0 for one in self._standings)
+        return Tallies(
+            actions=str(len(catalog.targets)) if catalog.targets else "",
+            environments=(
+                f"{len(catalog.launchable_environments)}/{len(catalog.environments)}"
+                if catalog.environments
+                else ""
+            ),
+            estate=str(hosts) if hosts else "",
+            running=any(run.state == "running" for run in runs),
+        )
+
+    def _render_actions(self) -> None:
+        if self._catalog is None:
+            return
+        self._actions_page.render(
+            catalog=self._catalog,
+            config=self._config,
+            needle=self._search.get_text().strip(),
+            hosts={name: self._hosts_in(name) for name in self._inventories},
+            group=self._actions_group,
+        )
+
+    def _about_facts(self) -> list[tuple[str, str]]:
+        return aboutpage.facts(
+            repo=self._settings.repo,
+            plane=self._plane,
+            state_dir=self._settings.state_dir,
+            runs=len(self._runs),
+            history=self._settings.history_path,
+            events=self._settings.events_path,
+        )
+
+    def _render_about(self) -> None:
+        self._about_page.render(self._about_facts())
+
     def _show_broken(self) -> None:
-        """The one state with no views to show: say what happened and offer the check."""
+        """The one state with no places to show: say what happened and offer the check."""
         self._show_notice(f"Cannot read the repository: {self._catalog_error}", level="loud")
         self._show_freshness()
         self._surface.set_visible_child_name("broken")
-        self._switcher.set_visible(False)
-        _empty(self._broken)
+        w.clear(self._broken)
 
         page = w.empty(
             "This repository cannot be read",
             f"{self._catalog_error}\n\nThe console derives everything it offers from "
-            "`make help`, so until that runs there is nothing to show. Nothing has been "
-            "changed and nothing has run.",
+            "the repository, so until that can be read there is nothing to show. "
+            "Nothing has been changed and nothing has run.",
             "dialog-error-symbolic",
         )
-        buttons = w.box(Gtk.Orientation.HORIZONTAL, 10)
+        buttons = w.row(10)
         buttons.set_halign(Gtk.Align.CENTER)
-        for text_label, action_name, style in (
-            ("Check this control plane", "win.checkup", "suggested-action"),
-            ("Open the folder", "win.folder", ""),
-            ("Try again", "win.refresh", ""),
-        ):
-            button = Gtk.Button(label=text_label)
-            button.add_css_class("pill")
-            if style:
-                button.add_css_class(style)
-            button.set_action_name(action_name)
-            buttons.append(button)
+        buttons.append(w.button("Check this repository", "go", action="win.checkup"))
+        buttons.append(w.button("Open the folder", "quiet", action="win.folder"))
+        buttons.append(w.button("Try again", "quiet", action="win.refresh"))
         page.set_child(buttons)
         self._broken.append(page)
 
@@ -850,293 +1221,35 @@ class ConsoleWindow(Adw.ApplicationWindow):
         self._notice.set_child(w.notice(text, level, action))
         self._notice.set_reveal_child(True)
 
-    # --- the actions page ---
-
-    def _render_actions(self) -> None:
-        _empty(self._actions_page)
-        needle = self._search.get_text().strip()
-        launchable = bool(self._catalog.launchable_environments)
-
-        if not launchable:
-            self._actions_page.append(self._read_only_page())
-            return
-
-        self._actions_page.append(self._actions_header())
-        matches = search.rank(self._catalog.targets, needle)
-        if needle and not matches:
-            self._actions_page.append(
-                w.empty(
-                    f"Nothing here is called “{needle}”",
-                    "The search covers a target's name and the description `make help` "
-                    "prints beside it.",
-                    "system-search-symbolic",
-                )
-            )
-            return
-
-        if needle:
-            self._actions_page.append(self._ranked(matches, needle))
-            return
-        self._actions_page.append(self._by_group([m.target for m in matches]))
-
-    def _actions_header(self) -> Gtk.Widget:
-        beside = None
-        if self._last_run is not None:
-            beside = w.label(
-                f"Last run: {self._last_run.name}, {moment(self._last_run.started)}",
-                "metric-detail",
-            )
-        return w.page_header(
-            "Actions",
-            f"{plural(len(self._catalog.targets), 'target')}, in the groups this repository "
-            f"declares and the order it declares them. Anything that changes something "
-            f"says so beside its name.",
-            beside,
-        )
-
-    def _by_group(self, targets) -> Gtk.Widget:
-        """One group at a time, chosen from a column: eleven targets scroll, forty do not."""
-        groups: dict[str, list] = {}
-        for target in targets:
-            groups.setdefault(target.group, []).append(target)
-        # The config declares its groups in a working order; sorting them
-        # alphabetically would throw that decision away.
-        names = self._config.sort_groups(groups)
-        if len(names) < 2:
-            holder = w.box(spacing=16)
-            for name in names:
-                holder.append(self._group_rows(name, groups[name], titled=True))
-            return holder
-
-        if self._actions_group not in names:
-            self._actions_group = names[0]
-        chosen = self._actions_group
-
-        body = w.box(Gtk.Orientation.HORIZONTAL, 20)
-        column = w.box(spacing=2)
-        column.add_css_class("group-column")
-        # It expands so its rule runs the height of the region rather than
-        # stopping under the last group, which read as a torn edge.
-        column.set_vexpand(True)
-        for name in names:
-            column.append(self._group_row(name, len(groups[name]), name == chosen))
-        body.append(column)
-
-        # No heading over the rows: the column already says which group this is.
-        rows = self._group_rows(chosen, groups[chosen], titled=False)
-        rows.set_hexpand(True)
-        body.append(rows)
-        return body
-
-    def _group_row(self, name: str, count: int, chosen: bool) -> Gtk.Widget:
-        line = w.box(Gtk.Orientation.HORIZONTAL, 10)
-        label = w.label(name, "group-name")
-        label.set_hexpand(True)
-        label.set_ellipsize(3)
-        line.append(label)
-        line.append(w.label(str(count), "group-count"))
-        button = Gtk.Button(child=line)
-        button.add_css_class("flat")
-        button.add_css_class("group-row")
-        if chosen:
-            button.add_css_class("chosen")
-        button.set_tooltip_text(f"{plural(count, 'target')} in {name}")
-        button.connect("clicked", lambda _b, n=name: self._choose_group(n))
-        return button
-
-    def _choose_group(self, name: str) -> None:
-        self._actions_group = name
-        self._render_actions()
-
-    def _group_rows(self, name: str, targets, titled: bool) -> Gtk.Widget:
-        group = Adw.PreferencesGroup(title=name if titled else "")
-        for target in targets:
-            group.add(self._target_row(target))
-        return group
-
-    def _read_only_page(self) -> Gtk.Widget:
-        """The dead end this used to be: forty greyed-out buttons and no way forward."""
-        page = w.empty(
-            "Nothing can be launched yet",
-            f"{plural(len(self._catalog.targets), 'target')} were read from `make help`, and "
-            "none of them may run until you say which environments this console is allowed "
-            f"to reach. Nothing is chosen for you, because that is a decision about "
-            f"production.\n\nThe choice is stored in {CONFIG_NAME} in the repository.",
-            "changes-prevent-symbolic",
-        )
-        button = Gtk.Button(label="Manage environments…")
-        button.add_css_class("suggested-action")
-        button.add_css_class("pill")
-        button.set_halign(Gtk.Align.CENTER)
-        button.set_action_name("win.environments")
-        page.set_child(button)
-        return page
-
-    def _ranked(self, matches, needle: str) -> Gtk.Widget:
-        """While searching the list is one ranked run, because a group heading would
-        hide which match is the best one."""
-        group = Adw.PreferencesGroup(
-            title=f"{plural(len(matches), 'match')} for “{needle}”",
-            description="Best match first.",
-        )
-        for match in matches:
-            row = self._target_row(match.target)
-            row.set_subtitle(f"{match.target.description} · {match.reason}")
-            group.add(row)
-        return group
-
-    def _target_row(self, target) -> Adw.ActionRow:
-        row = Adw.ActionRow(title=target.name, subtitle=target.description, activatable=True)
-        row.set_subtitle_lines(2)
-        book = self._config.runbook_for(target.name)
-        if book.stale():
-            stale = w.badge("STALE", "medium")
-            stale.set_tooltip_text(
-                f"Last reviewed {book.reviewed}. Nobody has looked at this runbook in a year."
-            )
-            row.add_suffix(stale)
-        chip = w.danger_chip(target.danger)
-        if chip is not None:
-            row.add_suffix(chip)
-        button = Gtk.Button(label="Run…", valign=Gtk.Align.CENTER)
-        button.add_css_class("pill")
-        button.set_tooltip_text(self._where(target))
-        button.connect("clicked", lambda _b, t=target: self._open_launch(t))
-        row.add_suffix(button)
-        row.connect("activated", lambda _r, t=target: self._open_launch(t))
-        w.attach_context_menu(
-            row,
-            [
-                (f"Run {target.name}…", lambda t=target: self._open_launch(t)),
-                (
-                    "Copy the make command",
-                    lambda t=target: self._copy(f"make {t.name}", "command"),
-                ),
-            ],
-        )
-        return row
-
-    def _where(self, target) -> str:
-        names = target.fixed_environment or ", ".join(
-            e.name for e in self._catalog.launchable_environments
-        )
-        return f"Set up a run of {target.name} against {names}"
-
-    def _copy(self, text: str, what: str) -> None:
-        w.copy_to_clipboard(text)
-        self._toast(f"Copied the {what}")
-
-    # --- the runs page ---
-
-    def _render_runs(self, runs) -> None:
-        signature = tuple((r.id, r.state, r.duration_s) for r in runs) + (self._runs_filter,)
-        if signature == self._runs_signature:
-            return
-        self._runs_signature = signature
-        _empty(self._runs_page)
-
-        if not runs:
-            others = [
-                r
-                for r in self._store.planes()
-                if r not in (self._plane.name, str(self._settings.repo))
-            ]
-            note = (
-                f"Runs from {plural(len(others), 'other control plane')} are kept separately, "
-                "so this page only ever judges this one."
-                if others
-                else "Everything launched here is recorded, with its exit code and what "
-                "Ansible reported. Nothing is written until the first run."
-            )
-            self._runs_page.append(
-                w.empty("No runs yet for this repository", note, "document-open-recent-symbolic")
-            )
-            return
-
-        self._runs_page.append(
-            w.page_header(
-                "Runs",
-                f"{plural(len(runs), 'run')} recorded for this control plane. "
-                "Anything older than this console is in the Estate, read from the release log.",
-                self._filter_button(),
-            )
-        )
-        self._runs_page.append(w.recent_run_card(runs[0], self._open_run))
-
-        section = w.Section(
-            "Run history",
-            folded=self._folding.is_folded(HISTORY_SECTION),
-            on_fold=lambda folded: self._folding.remember(HISTORY_SECTION, folded),
-        )
-        section.set_child(self._history(runs))
-        self._runs_page.append(section)
-
-        taken = self._decisions.all(self._plane.name)
-        if taken:
-            changes = w.Section(
-                "Decisions",
-                folded=self._folding.is_folded(DECISIONS_SECTION),
-                on_fold=lambda folded: self._folding.remember(DECISIONS_SECTION, folded),
-            )
-            changes.set_child(_decision_rows(taken))
-            self._runs_page.append(changes)
-
-    def _history(self, runs) -> Gtk.Widget:
-        """Every run under the day it happened on, as far as the filter allows."""
-        holder = w.box(spacing=16)
-        kept = runs_module.apply(runs, self._runs_filter)
-        if not kept:
-            holder.append(
-                w.label(runs_module.by_key(self._runs_filter).empty, "tint-muted", wrap=True)
-            )
-            return holder
-
-        shown = kept[:RUNS_SHOWN]
-        for heading_text, day_runs in _by_day(shown):
-            group = Adw.PreferencesGroup(title=heading_text)
-            for run in day_runs:
-                group.add(
-                    w.run_row(run, self._open_run, under_a_day=True, on_relaunch=self._relaunch)
-                )
-            holder.append(group)
-        if len(kept) > len(shown):
-            holder.append(
-                w.label(
-                    f"{plural(len(kept) - len(shown), 'older run')} not shown. Every one of "
-                    f"them is in the history file, and `ordane runs -n {len(kept)}` "
-                    "prints them.",
-                    "tint-muted",
-                    wrap=True,
-                )
-            )
-        return holder
-
-    def _filter_button(self) -> Gtk.Widget:
-        """Four questions the history is asked, not a query builder."""
-        menu = Gio.Menu()
-        for one in runs_module.FILTERS:
-            item = Gio.MenuItem.new(one.label, None)
-            item.set_action_and_target_value("win.runs-filter", GLib.Variant.new_string(one.key))
-            menu.append_item(item)
-        button = Gtk.MenuButton(
-            label=runs_module.by_key(self._runs_filter).label,
-            menu_model=menu,
-            valign=Gtk.Align.CENTER,
-        )
-        button.set_tooltip_text("Show only some of the runs")
-        return button
-
     # --- launching ---
 
     def _open_launch(self, target) -> None:
-        dialog = LaunchDialog(
+        if target is None:
+            self._toast("There is no such action in this repository")
+            return
+        LaunchDialog(
             target=target,
             catalog=self._catalog,
             config=self._config,
             repo=self._settings.repo,
             on_launch=self._launch,
-        )
-        dialog.present(self)
+        ).present(self)
+
+    def _launch_simply(self, name: str, environment: str, dry_run: bool) -> None:
+        """The composer's own launch: the two things every run needs, and no more.
+
+        An action with parameters it insists on cannot be launched this way, so
+        the full form opens instead of the run being refused.
+        """
+        target = self._catalog.target(name) if self._catalog else None
+        if target is None:
+            self._toast(f"{name} is not an action in this {PLANE}")
+            return
+        if any(getattr(one, "required", False) for one in target.params.values()):
+            self._toast(f"{name} needs its parameters filling in first")
+            self._open_launch(target)
+            return
+        self._launch(target, environment, {}, dry_run)
 
     def _hosts_in(self, environment: str) -> tuple[str, ...]:
         answer = self._inventories.get(environment)
@@ -1166,7 +1279,14 @@ class ConsoleWindow(Adw.ApplicationWindow):
 
     def _ask_inventory(self, name: str, path: str) -> None:
         answer = inventory_module.read(self._settings.repo, path)
-        GLib.idle_add(self._inventories.__setitem__, name, answer)
+        GLib.idle_add(self._inventory_read, name, answer)
+
+    def _inventory_read(self, name: str, answer) -> bool:
+        """An answer that lands after the page was drawn still has to reach it."""
+        self._inventories[name] = answer
+        if self._catalog is not None:
+            self._render(reread_catalog=True)
+        return False
 
     def builder_for(self, environment: str) -> str:
         """The host that builds for this environment, or nothing yet known.
@@ -1196,7 +1316,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
                 level="loud",
                 action=("Open the configuration", "win.configure"),
             )
-            self._toast(f"{target.name} was refused by this control plane's own policy")
+            self._toast(f"{target.name} was refused by this repository's own policy")
             return
         order = runbook_module.steps(book)
         self._sequence = _Sequence(
@@ -1221,7 +1341,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
             return
         target = self._catalog.target(step.target) if self._catalog else None
         if target is None:
-            self._toast(f"{step.target} is not a target in this {PLANE}")
+            self._toast(f"{step.target} is not an action in this {PLANE}")
             self._sequence = None
             return
         first = step.kind == runbook_module.OPERATION
@@ -1246,6 +1366,9 @@ class ConsoleWindow(Adw.ApplicationWindow):
                 labels=self._config.labels_for(target.name) if first else {},
                 builder=self.builder_for(sequence.environment),
                 sequence=sequence.id,
+                # The operation is what somebody pressed the button for, so it
+                # always keeps its own row; the checks around it may fold.
+                origin=density.BY_HAND if first else density.BY_STEP,
             )
         except (command_module.ValidationError, RunnerError) as exc:
             self._toast(str(exc))
@@ -1258,7 +1381,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
             self._watch_step(active, step)
 
     def _validate_step(self, step) -> None:
-        """The control plane's own checks, before anything reaches a host.
+        """The repository's own checks, before anything reaches a host.
 
         Shown rather than run silently: a check that gates a deploy is one
         somebody has to be able to read the output of.
@@ -1334,8 +1457,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
             )
         elif book.recovery:
             self._show_notice(
-                f"{book.target} failed. This control plane declares "
-                f"{book.recovery} as its recovery.",
+                f"{book.target} failed. This repository declares {book.recovery} as its recovery.",
                 level="loud",
                 action=(f"Run {book.recovery}…", "win.recover"),
             )
@@ -1348,7 +1470,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
             self._open_launch(target)
         self._recovery = ""
 
-    def _open_run(self, run_id: str) -> None:
+    def _open_run(self, run_id: str, navigate: bool = True) -> None:
         """A run that has ended is a stored run, whoever still holds it in memory.
 
         The runner keeps every run it started, finished or not. A finished one has no
@@ -1362,14 +1484,13 @@ class ConsoleWindow(Adw.ApplicationWindow):
             self._toast(f"no run {run_id}")
             return
         output = "" if active is not None else self._store.output(run_id)
-        self._show_run(run, output, active)
+        self._show_run(run, output, active, navigate=navigate)
 
-    def _show_run(self, run, output: str, active) -> None:
-        page = self._stack.get_page(self._runview)
-        page.set_visible(True)
-        page.set_title(run.name)
+    def _show_run(self, run, output: str, active, navigate: bool = True) -> None:
         self._runview.show(run, output, active)
-        self._go("run")
+        self._runs_page.select(run.id)
+        if navigate:
+            self._go(RUNS)
 
     def _relaunch(self, run_id: str, only_failures: bool = False) -> None:
         """Runs a recorded run again, or says why it cannot be."""
@@ -1394,6 +1515,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
                 # Read again rather than copied: the inventory may name a
                 # different builder than it did when the first run went out.
                 builder=self.builder_for(run.environment),
+                origin=density.BY_REPEAT,
             )
         except RunnerError as exc:
             self._toast(str(exc))
@@ -1414,12 +1536,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
             self._toast("That run has already finished")
 
     def _toast(self, message: str) -> None:
-        """A short sentence, and one that cannot ask for more width than there is.
-
-        A toast's default title does not wrap, so a long message made the
-        overlay request more than the window had: hundreds of warnings and a
-        toast wider than what it was reporting on.
-        """
+        """A short sentence, and one that cannot ask for more width than there is."""
         toast = Adw.Toast(timeout=4)
         said = w.label(message, wrap=True, xalign=0.5)
         said.set_justify(Gtk.Justification.CENTER)
@@ -1442,28 +1559,6 @@ class ConsoleWindow(Adw.ApplicationWindow):
         self._toasts.add_toast(toast)
 
 
-def _decision_rows(taken) -> Gtk.Widget:
-    """What was changed, as against what was run. The two are different histories."""
-    group = Adw.PreferencesGroup(
-        description="What was changed here, and by whom. A run is not the only thing "
-        "that decides what this console will deploy."
-    )
-    for decision in taken[:DECISIONS_SHOWN]:
-        row = Adw.ActionRow(title=decision.summary)
-        row.set_title_lines(2)
-        row.set_subtitle(f"{decision.actor} · {moment(decision.at)}")
-        name = DECISION_ICONS.get(decision.kind, "emblem-system-symbolic")
-        icon = Gtk.Image.new_from_icon_name(name)
-        if decision.widened:
-            icon.add_css_class("tint-warn")
-            row.add_suffix(w.badge("WIDENED", "medium"))
-        row.add_prefix(icon)
-        group.add(row)
-    if len(taken) > DECISIONS_SHOWN:
-        group.add(Adw.ActionRow(title=f"and {len(taken) - DECISIONS_SHOWN} more"))
-    return group
-
-
 @dataclass(frozen=True)
 class _Sequence:
     """What a launch is running, kept while its steps go one after another."""
@@ -1479,36 +1574,42 @@ class _Sequence:
     id: str = ""
 
 
-def breakpoint_for(window) -> Adw.Breakpoint:
-    """Below this the chrome is fighting for the width the content needs.
+def _key_for(action: str) -> str:
+    key = for_action(action)
+    return key.pretty if key is not None else ""
 
-    The rail folds away and the header gives up which control plane it is
-    driving, which is what leaves the switcher room to print its labels.
+
+def _well(child: Gtk.Widget) -> Gtk.Widget:
+    """The content well: left-aligned inside the stage, and it fills the height."""
+    holder = w.clamp(child)
+    holder.set_vexpand(True)
+    return holder
+
+
+def breakpoint_for(window) -> Adw.Breakpoint:
+    """Below this the rail is taking width the content needs, so it folds away.
+
+    The two places that are a list beside a pane stack instead, because a
+    296 px list and a run's own detail cannot both keep their width — and a
+    window that demands more than it has does not lay out at all.
     """
-    condition = Adw.BreakpointCondition.parse("max-width: 1000px")
+    condition = Adw.BreakpointCondition.parse("max-width: 1100px")
     point = Adw.Breakpoint.new(condition)
     point.add_setter(window.split, "collapsed", True)
-    point.add_setter(window._plane_button, "visible", False)
+
+    # The orientation is set from the signals rather than by `add_setter`. A
+    # setter for an enum property applied nothing here and said nothing about
+    # it, so the two split pages stayed side by side in a window too narrow to
+    # hold them and the layout asked for more width than it had.
+    stacked = (window._actions_page, window._runs_page)
+
+    def lay_out(_point, orientation) -> None:
+        for page in stacked:
+            page.set_orientation(orientation)
+
+    point.connect("apply", lay_out, Gtk.Orientation.VERTICAL)
+    point.connect("unapply", lay_out, Gtk.Orientation.HORIZONTAL)
     return point
-
-
-def _by_day(runs) -> list[tuple[str, list]]:
-    """The runs in order, split where the day changes."""
-    grouped: list[tuple[str, list]] = []
-    for run in runs:
-        heading = day(run.started)
-        if grouped and grouped[-1][0] == heading:
-            grouped[-1][1].append(run)
-        else:
-            grouped.append((heading, [run]))
-    return grouped
-
-
-def _empty(container: Gtk.Box) -> None:
-    child = container.get_first_child()
-    while child is not None:
-        container.remove(child)
-        child = container.get_first_child()
 
 
 def resolve_repo(raw: Path) -> Path:

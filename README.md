@@ -26,13 +26,13 @@ If there is a Makefile it drives that, reading the targets out of `make help`. I
 make demo
 ```
 
-That opens the console against a control plane that reaches nothing, so you can click on anything without consequences. It seeds its own history first: ninety days of deploys, two of which failed, so the delivery measures and objectives have something real to compute from instead of four cards saying `Setup needed`. That history lives in `.demo-state/` and is rebuilt each time, and nothing you actually deploy with is touched. Then:
+That opens the console against a control plane that reaches nothing, so you can click on anything without consequences. It seeds its own history first: ninety days of deploys, two of which failed, and two days of half-hourly scheduled pings, so the delivery measures, the objectives and the run-density rules all have something real to work on instead of four dormant cards and an empty list. That history lives in `.demo-state/` and is rebuilt each time, and nothing you actually deploy with is touched. Then:
 
 ```bash
 ordane --repo ~/control-plane
 ```
 
-![The health view](docs/images/01-health.png)
+![The overview](docs/images/01-overview.png)
 
 ## Contents
 
@@ -51,7 +51,7 @@ ordane --repo ~/control-plane
 
 A control plane like this has no memory. Somebody runs `make deploy`, the output scrolls past, the terminal gets closed, and the only record it happened is whatever that person remembers. Ask how often you release, or how long a cutover takes, and there is nowhere to look.
 
-Ordane keeps that record: every run, the exact command, what Ansible reported, and how long it took. The delivery measures on the Health view are computed from it and from your release history. Where a measure has no source it says so instead of showing zero, because a backfilled figure makes an absence look like a measurement.
+Ordane keeps that record: every run, the exact command, what Ansible reported, and how long it took. The delivery measures on the Delivery view are computed from it and from your release history. Where a measure has no source it says so instead of showing zero, because a backfilled figure makes an absence look like a measurement.
 
 The other reason is that `make` is a risky interface for something that reaches production. A mistyped variable becomes a shell command on a remote host, and a target name one letter out is a different outage. So parameters are allow-listed instead of escaped, the exact command is shown before anything runs, and nothing can be launched at all until you have named the environments this console is allowed to reach.
 

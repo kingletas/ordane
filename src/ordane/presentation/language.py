@@ -77,7 +77,7 @@ VERDICT = {
     OK: Word("All clear", "Every check this console can make came back clean."),
     ATTENTION: Word("Needs attention", "Something is degraded but nothing is broken."),
     PROBLEM: Word("Action required", "Something failed, or an objective is being missed."),
-    UNKNOWN: Word("Setup needed", "Healthy so far as it can be seen, which is not everything."),
+    UNKNOWN: Word("Waiting on you", "Healthy so far as it can be seen, which is not everything."),
 }
 
 # What a measure with no source is short of, written as the thing to do about
