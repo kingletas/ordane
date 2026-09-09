@@ -56,6 +56,9 @@ class Param:
     allow_other: bool = False
     help: str = ""
     secret: bool = False
+    # What a real value looks like, shown as the field's placeholder. Read from
+    # the `# make <target> key=value` line a Makefile already carries.
+    example: str = ""
 
     @property
     def constrained(self) -> bool:
@@ -190,6 +193,7 @@ def _param(name: str, spec: Any) -> Param:
         allow_other=bool(spec.get("allow_other", False)),
         help=str(spec.get("help", "") or ""),
         secret=bool(spec.get("secret", False)),
+        example=str(spec.get("example", "") or ""),
     )
 
 

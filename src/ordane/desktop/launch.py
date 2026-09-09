@@ -11,13 +11,17 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
+from ..core import choices as choices_module  # noqa: E402
 from ..core import command as command_module  # noqa: E402
 from ..core import composition as composition_module  # noqa: E402
+from ..core import exposure  # noqa: E402
 from ..core import inventory as inventory_module  # noqa: E402
 from ..core.catalog import Target  # noqa: E402
 from ..presentation import language  # noqa: E402
 from ..presentation.text import plural  # noqa: E402
+from . import suggest as suggest_module  # noqa: E402
 from . import widgets as w  # noqa: E402
+from .pastedialog import PasteDialog  # noqa: E402
 
 # What the preview says while the form is not yet answerable. It is deliberately
 # not a command: printing one with a placeholder in it invites somebody to copy
@@ -47,6 +51,7 @@ class LaunchDialog(Adw.Dialog):
         self._preview = w.label("", "numeric", wrap=True)
         self._error = Adw.Banner(revealed=False)
         self._error.add_css_class("error")
+        self._exposure = Adw.Banner(revealed=False)
 
         self.set_child(self._build())
         self._refresh_preview()
@@ -63,9 +68,7 @@ class LaunchDialog(Adw.Dialog):
         header.pack_start(cancel)
 
         self._run_button = Gtk.Button(label="Run")
-        self._run_button.add_css_class(
-            "destructive-action" if self._target.danger == "high" else "suggested-action"
-        )
+        self._run_button.add_css_class("suggested-action")
         self._run_button.connect("clicked", self._on_run_clicked)
         self._run_button.set_sensitive(self._can_run())
         if not self._can_run():
@@ -80,12 +83,7 @@ class LaunchDialog(Adw.Dialog):
         body.append(self._error)
         body.append(w.label(self._target.description, "tint-muted", wrap=True))
 
-        note = language.danger_note(self._target.danger)
-        if self._target.danger != "low":
-            banner = Adw.Banner(title=note, revealed=True)
-            if self._target.danger == "high":
-                banner.add_css_class("error")
-            body.append(banner)
+        body.append(self._exposure)
 
         if not self._can_run():
             body.append(Adw.Banner(title=NO_ENVIRONMENT, revealed=True))
@@ -325,8 +323,11 @@ class LaunchDialog(Adw.Dialog):
         """
         choices = command_module.choices_for(param, self._catalog, self._repo)
         title = _title(name)
+        source = choices_module.source_for(param, self._repo)
 
-        if choices and not param.allow_other:
+        can_add = source is not None and source.writable
+        completes = choices_module.worth_completing(choices, param.allow_other, can_add)
+        if choices and not completes:
             explanation = param.help or f"One of {len(choices)} permitted values"
             row = Adw.ComboRow(title=title, model=Gtk.StringList.new(["—", *choices]))
             row.set_subtitle(_subtitle(param.required, explanation))
@@ -336,7 +337,7 @@ class LaunchDialog(Adw.Dialog):
             return row
 
         entry = Gtk.Entry(valign=Gtk.Align.CENTER, hexpand=True, width_chars=22)
-        entry.set_placeholder_text(choices[0] if choices else name)
+        entry.set_placeholder_text(param.example or (choices[0] if choices else name))
         if param.secret:
             # Not shown while it is typed, and masked everywhere it is written.
             entry.set_visibility(False)
@@ -355,10 +356,35 @@ class LaunchDialog(Adw.Dialog):
             ),
         )
         row.set_subtitle_lines(3)
+        if completes:
+            row.set_subtitle(
+                _subtitle(
+                    param.required,
+                    param.help or f"Start typing — {len(choices)} to choose from",
+                )
+            )
+            suggest_module.Completer(
+                entry,
+                lambda: command_module.choices_for(param, self._catalog, self._repo),
+                noun=source.noun if source is not None else name,
+                on_add=(
+                    self._adder(entry, source) if source is not None and source.writable else None
+                ),
+            )
         row.add_suffix(entry)
         row.set_activatable_widget(entry)
         self._fields[name] = entry
         return row
+
+    def _adder(self, entry: Gtk.Entry, source) -> object:
+        """Opens the paste dialog, and puts what it wrote into the field."""
+
+        def took(name: str) -> None:
+            entry.set_text(name)
+            entry.set_position(-1)
+            self._refresh_preview()
+
+        return lambda: PasteDialog(source=source, repo=self._repo, on_added=took).present(self)
 
     # --- reading the form ---
 
@@ -457,6 +483,7 @@ class LaunchDialog(Adw.Dialog):
     def _refresh_preview(self) -> None:
         self._read_inventory()
         environment = self._environment()
+        self._say_how_exposed(environment)
         if self._confirm_entry is not None and environment:
             self._confirm_entry.set_placeholder_text(environment)
             self._confirm_row.set_subtitle(
@@ -464,12 +491,19 @@ class LaunchDialog(Adw.Dialog):
             )
         if not environment:
             self._preview.set_text(NOT_YET)
+            self._hold(NO_ENVIRONMENT)
             return
         try:
+            # Validated before it is built: a target whose parameters are still
+            # empty builds a command that would be refused, and printing one is
+            # what this preview exists not to do.
+            params = command_module.validate_params(
+                self._target, self._params(), self._catalog, self._repo
+            )
             built = command_module.for_target(
                 target=self._target,
                 environment=environment,
-                params=self._params(),
+                params=params,
                 config=self._config,
                 dry_run=self._dry_run(),
                 catalog=self._catalog,
@@ -480,8 +514,38 @@ class LaunchDialog(Adw.Dialog):
             declared = self._config.ansible.display
             shown = f"{declared} {built.safe_display}" if declared else built.safe_display
             self._preview.set_text(shown)
-        except command_module.ValidationError:
+            self._hold("")
+        except command_module.ValidationError as exc:
             self._preview.set_text(NOT_YET)
+            self._hold(str(exc))
+
+    def _say_how_exposed(self, environment: str) -> None:
+        """What running against this environment means, above everything else."""
+        level = exposure.level_for(environment, self._target.danger)
+        said = " ".join(
+            part
+            for part in (
+                exposure.caution(environment),
+                language.danger_note(self._target.danger) if self._target.danger != "low" else "",
+            )
+            if part
+        )
+        self._exposure.set_title(said)
+        self._exposure.set_revealed(bool(said))
+        for name in ("error", "warning"):
+            self._exposure.remove_css_class(name)
+        if said:
+            self._exposure.add_css_class("error" if level == "high" else "warning")
+        self._run_button.remove_css_class("suggested-action")
+        self._run_button.remove_css_class("destructive-action")
+        self._run_button.add_css_class(
+            "destructive-action" if level == "high" else "suggested-action"
+        )
+
+    def _hold(self, reason: str) -> None:
+        """Holds the Run button while the form cannot produce a command, and says why."""
+        self._run_button.set_sensitive(self._can_run() and not reason)
+        self._run_button.set_tooltip_text(reason or None)
 
     def _fail(self, message: str) -> None:
         self._error.set_title(message)

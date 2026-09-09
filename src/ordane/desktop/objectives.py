@@ -38,8 +38,9 @@ KINDS = (
     (
         "",
         "Something this console cannot measure",
-        "Declared, with a sentence saying what it would take. It reports `Setup needed` "
-        "rather than a number, which is the honest state for an objective with no source.",
+        "Declared, with a sentence saying what it would take. It says what it is short "
+        "of rather than a number, which is the honest state for an objective with no "
+        "source.",
     ),
 )
 
@@ -204,7 +205,7 @@ class ObjectiveRow(Adw.ExpanderRow):
         self._kind.set_subtitle(meaning)
         measurable = KINDS[self._kind.get_selected()][0] != ""
         self.set_subtitle(
-            "" if measurable else "Reports `Setup needed` until something measures it"
+            "" if measurable else "Says what it is short of until something measures it"
         )
 
     def value(self) -> dict | None:

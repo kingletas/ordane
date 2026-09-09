@@ -17,7 +17,7 @@ from ..presentation.text import plural, sentence
 from . import catalog as catalog_module
 from . import config as config_module
 from . import driver as driver_module
-from . import host, identity, plane
+from . import exposure, host, identity, plane
 from . import settings as settings_module
 from .config import CONFIG_NAME
 
@@ -135,6 +135,7 @@ def examine(
     findings.append(_how_it_was_read(catalog))
     findings.append(_plane_identity(repo, config))
     findings.append(_launchable(catalog, config))
+    findings.append(_how_exposed(catalog))
     findings.extend(_ansible_settings(repo, config))
     findings.extend(_environment_variable(repo, catalog, config))
     findings.extend(_inventories(catalog))
@@ -359,6 +360,40 @@ def _environment_variable(repo: Path, catalog, config) -> list[Finding]:
             + (f": likely {sentence(likely)}." if likely else "."),
         )
     ]
+
+
+def _how_exposed(catalog) -> Finding:
+    """Which environments the console can tell are production, and which it cannot.
+
+    Everything it runs is presented on the strength of this, so an environment
+    whose name says nothing is the one place the warning has to be its own.
+    """
+    launchable = [e.name for e in catalog.launchable_environments]
+    if not launchable:
+        return Finding(OK, "Nothing may be launched against", "So nothing is exposed.")
+    live = [n for n in launchable if exposure.reading(n) == exposure.PRODUCTION]
+    unknown = [n for n in launchable if exposure.reading(n) == exposure.UNKNOWN]
+    if unknown:
+        return Finding(
+            WARN,
+            f"Nothing in the name says what {sentence(unknown)} is",
+            "A run is warned about on the strength of the environment's name, and "
+            "these are treated as possibly dangerous because nothing else can be "
+            "known about them.",
+            "Name it after what it is — production, staging, dev, docker or local — "
+            "or accept the warning on every run against it.",
+        )
+    if live:
+        return Finding(
+            OK,
+            f"{sentence(live)} is treated as production",
+            "Every run against it is presented as dangerous, whatever the action is.",
+        )
+    return Finding(
+        OK,
+        "Nothing launchable here is production",
+        f"{sentence(launchable)} read as safe kinds.",
+    )
 
 
 def _launchable(catalog, config) -> Finding:

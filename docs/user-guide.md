@@ -6,10 +6,14 @@ Everything described here is also available in the terminal and in a browser, ov
 
 ## Contents
 
-- [The four views](#the-four-views)
-- [Health](#health)
+- [The rail and the stage](#the-rail-and-the-stage)
+- [Overview](#overview)
 - [Actions](#actions)
 - [Runs](#runs)
+- [Environments](#environments)
+- [Delivery](#delivery)
+- [Setup](#setup)
+- [The command palette](#the-command-palette)
 - [What a run told the outside world](#what-a-run-told-the-outside-world)
 - [Watching a run](#watching-a-run)
 - [Keyboard shortcuts](#keyboard-shortcuts)
@@ -20,33 +24,40 @@ Everything described here is also available in the terminal and in a browser, ov
 - [When nothing can be launched](#when-nothing-can-be-launched)
 - [When something is wrong](#when-something-is-wrong)
 
-## The chrome
+## The rail and the stage
 
-The mouse's side buttons step back and forward through the pages you have visited, the way they do everywhere else on this desktop. `Alt+Left` and `Alt+Right` do the same. When you are looking at a run, back takes you out of it.
+The window is a dark rail down the left and a stage beside it. **The rail holds places and nothing else.** Everything you can do *to* a repository — re-read it, open its configuration, export its history, check it, open another — is on the repository card at the foot of the rail, and in the command palette.
 
-You can select and copy values in a run: the command, the environment, the exit code, and whatever a host printed when it failed. The output pane is a plain text view, so select it, right-click it, `Ctrl+C` it.
+At the top of the stage is the place you are in, what it is about, and four things: the command palette (`Ctrl+K`), re-read the repository (`Ctrl+R`), the main menu, and the window controls.
 
-The header tells you which control plane this window is driving: its name, a dot saying whether it can be read, and how old that reading is. Click it for the full picture, including the path, what git says about the working tree, and who runs here. A deploy from a dirty tree is one nobody can reproduce, and the branch is the difference between shipping what was reviewed and shipping whatever happens to be checked out.
+The card at the foot of the rail tells you which control plane this window is driving: its name, the branch, whether the working tree is clean, and how old the reading is. A deploy from a dirty tree is one nobody can reproduce, and the branch is the difference between shipping what was reviewed and shipping whatever happens to be checked out. Click the card for everything the repository can be asked to do.
 
-Beside it are find a target (`Ctrl+F`), re-read the repository (`Ctrl+R`), and the menu, which holds everything you do to a control plane and everywhere you read about one.
+The mouse's side buttons step back and forward through the places you have visited, the way they do everywhere else on this desktop. `Alt+Left` and `Alt+Right` do the same.
 
-There is also a rail listing those same things as rows, with their keys printed on them. It is off unless you turn it on in **Preferences**, because it lists things you do once a session and it sat permanently in front of the content it describes. `Ctrl+B` shows and hides it, and a window narrower than 900 px folds it away for you.
+You can select and copy values in a run: the command, the exit code, and whatever a host printed when it failed. The output pane is a plain text view, so select it, right-click it, `Ctrl+C` it.
 
-## The four views
+`Ctrl+B` shows and hides the rail, and a window narrower than 1000 px folds it away for you.
 
-| View | What it answers |
+## The six places
+
+| Place | What it answers |
 |---|---|
-| **Health** | Does anything need me right now? |
+| **Overview** | Is it safe to act, and is there anything I should know about? |
 | **Actions** | What can I run, and what will it do? |
-| **Runs** | What has run, and how did it go? |
+| **Runs** | What has run, how did it go, and what is one run made of? |
+| **Environments** | What can be reached, and what is the one that cannot waiting on? |
 | **Estate** | What the shared stores know that this machine does not |
-| **Run** | This one run, live or recorded |
+| **Delivery** | How often we ship, how long it takes, and what we are holding ourselves to |
 
-The fourth appears when you open a run and goes away when you leave it. There is nothing else to learn: the window is a header bar, those views, and one menu.
+Three more screens are reached from those rather than listed beside them, because each stops being interesting once you are past it: **Setup**, **About** and **Preferences**.
 
-## Health
+## Overview
 
-The page leads with a status card rather than numbers: one word for the state, what caused it, what that costs you, and a button that does something about it. Beside it sits every environment with a dot saying whether it can be reached.
+The page leads with **one sentence** saying whether it is safe to deploy, and one line naming the single thing standing in the way. Nothing else on the screen is allowed to compete with it.
+
+Under it is the estate: one tile per environment, with a status bar down its edge, how many hosts it holds, when it last ran, and how much the last run had to change. An environment that is waiting on you gains one line saying what would fix it — in blue, because a repository that has not finished being set up has not gone wrong.
+
+Then the instruments: the setup card while there are steps left, the two delivery measures that have a source, the objectives, and the last day of runs.
 
 Below that, the four delivery measures, under the names the industry gave them:
 
@@ -59,13 +70,13 @@ Below that, the four delivery measures, under the names the industry gave them:
 
 Two of the four come from the release log your reporter commits, and two from this console's own runs. Change failure rate counts finished deploy runs and their exit codes. Time to restore measures the gap between a failed deploy and the next one that worked on the same environment, so what it is really timing is the deployment being restored, not the service. Nothing here reads an incident tracker, which means a failure nobody deployed through is invisible to it, and a second failure before a fix does not restart the clock.
 
-A card with no source says `Setup needed` and tells you what would fill it. It never says `no data` and never shows a zero, because a backfilled figure makes an absence look like a measurement, and a dashboard that invents a good number is less use than one admitting a gap.
+A card with no source is dormant — a dashed outline and the sentence that would turn it on. It never says `no data`, never says `Setup needed`, and never shows a zero, because a backfilled figure makes an absence look like a measurement, and a page that invents a good number is less use than one admitting a gap.
 
 A comparison with the previous six months only appears where the sample supports it. Both halves need at least eight releases; below that an arrow would be noise pointing somewhere, and people read arrows as findings. The arrow shows what the number did and the colour says whether that is good news, so a lead time that rose points up and is amber.
 
 Recent runs folds away, and so does the run history on the Runs page. Click the heading. Your choice is remembered between sessions, like the window size and the rail.
 
-The objectives below follow the same rule. One with no way to be measured reads *Setup needed* and names what is missing, whether that is a probe that should not run on a laptop or an SLI definition nobody has written. You decide which environments count towards a measure in `.ordane.yml`; without that, a run against a throwaway container fleet would read as a release.
+The objectives below follow the same rule. One with no way to be measured says what it is short of — *Needs 1 cutover*, *Needs a probe* — rather than complaining, whether what is missing is a probe that should not run on a laptop or an SLI definition nobody has written. You decide which environments count towards a measure in `.ordane.yml`; without that, a run against a throwaway container fleet would read as a release.
 
 ## Actions
 
@@ -186,15 +197,59 @@ A run that asks for a vault password can be answered here. A field appears above
 
 ## Runs
 
-Every run this console has launched, **grouped by the day it happened on** and scoped to the repository you are driving. **One history file serves every control plane and every view scopes to its own**, so one estate's dashboard never judges another's runs.
+The list on the left, one run open on the right. Every run this console has launched, **grouped by the day it happened on** and scoped to the repository you are driving. **One history file serves every control plane and every view scopes to its own**, so one estate never judges another's runs.
 
-The most recent run gets its own card, since the question that brings people to this page is almost always about the last thing that ran.
+### A row has to earn its line
 
-Below it is the history. Each row carries the outcome in the word a person would actually use, the time it started (the day is already the heading), and how long it took. Right-click a row to copy its command or its id.
+A repository that pings every half hour produces about fifty runs a day, forty-eight of which say the same thing. Listed one per line, that history stops being information and becomes a log — and a log is what this exists to be better than.
 
-There are four filters, matching the four questions this history actually gets asked: everything, what broke, what is still going, and what touched customers. A filter with nothing in it tells you so, with something like *Nothing here has failed*, instead of showing an empty page.
+So consecutive runs fold into one summary row when **all** of these hold: same action, same environment, it passed, nothing changed on any host, and nobody pressed a button for it — a scheduled run, a repeat, or a check inside a runbook. **If you pressed the button you get your own line**: you were there, and you will look for it.
 
-Beyond sixty runs the page says how many it is not showing. Everything is still in the history file, and `ordane runs -n 200` will print them.
+The folded row still prints its count — *44 passed · Routine runs — ping, check* — and opens in place. Nothing is hidden, only folded.
+
+### A row prints only what deviates
+
+Zero is not news. An unchanged host count is left out rather than rendered as `0`, and a duration is printed only for a live run or one that took unusually long for its action.
+
+What a row carries is four things: the outcome, the action on its environment, the one fact that explains the outcome, and when. The fact is a sentence fragment — *4 of 6 hosts changed*, *db-01: lock timeout after 2m 41s* — not a number in a column.
+
+### Shape before text
+
+Overview puts a 24-hour ribbon above the rows: one tick per run, short and pale for a routine pass, full height and coloured for anything that changed, drifted or failed. Forty-seven runs occupy one band and answer *was today normal?* before a word is read.
+
+Overview shows at most five rows that deviated plus one folded row. If more deviated, the last row says how many and links here.
+
+### The two filters
+
+**Worth a look** is the default and it is the folding above: it never hides a failure, a change, or a run somebody launched by hand. **Everything** prints one line per run. Beside them, the same four questions this history has always been asked: everything, what broke, what is still going, and what touched customers.
+
+Under the list is **Decisions** — what was *changed* here, as against what was *run*. A ref switch, an environment being allowed, an objective being set. A run is not the only thing that decides what this console will deploy.
+
+## Environments
+
+One row per environment the repository declares: where its hosts come from, whether the last run matched, and a pill in one of four words.
+
+An environment that is waiting on you is opened out, with the sentence saying what it needs and the button that gives it. **Waiting is blue, never amber.** Not having finished setting something up is not a fault, and spending the alarm colour on it leaves nothing to escalate to when something actually breaks.
+
+**Ask its hosts** runs a ping against an environment. It changes nothing, and it is recorded as neither a deploy nor a cutover, so a probe can never move a delivery measure.
+
+## Delivery
+
+All four delivery signals, each either a figure with the range it was computed over, or a dormant card saying in a sentence what would turn it on. A chart's axis labels name the same range as the line above them.
+
+Below them the service objectives, each with a gauge that carries its own target tick, so you are not asked to hold two numbers and compare them yourself. An objective with no source says what it is short of — *Needs 1 cutover*, *Needs a probe* — rather than the words `Setup needed`.
+
+At the foot is what these numbers do not cover, in the copy rather than in fine print. A restore is the deploy that followed a failed one; nothing here reads an incident tracker.
+
+## Setup
+
+Seven steps, in the order that makes each one possible, reached from the card on Overview. Each one turns a specific thing on and says which, so you can stop after any of them and the console still works. It stops existing at seven of seven.
+
+## The command palette
+
+`Ctrl+K`. Type, arrow, enter. Four groups: **Run** an action against an environment, everything you can do to **this repository**, **switch** to another one, and **go to** a place.
+
+Every one of the nine repository actions that used to be a row in the rail is here, and none of them is in the rail. The rail is for places.
 
 ## Watching a run
 
@@ -216,14 +271,17 @@ Every run is written to `~/.local/state/ordane/runs.jsonl`, with the output besi
 
 | Key | What it does |
 |---|---|
-| `Ctrl+1` | Go to Health |
+| `Ctrl+1` | Go to Overview |
 | `Ctrl+2` | Go to Actions |
 | `Ctrl+3` | Go to Runs |
-| `Ctrl+4` | Go to the Estate |
-| `Escape` | Leave the run you are watching |
-| `Alt+Left` | Back to the page before this one |
+| `Ctrl+4` | Go to Environments |
+| `Ctrl+5` | Go to the Estate |
+| `Ctrl+6` | Go to Delivery |
+| `Alt+Left` | Back to the place before this one |
 | `Alt+Right` | Forward again |
-| `Ctrl+F` | Find a target |
+| `Ctrl+K` | Search or run a command |
+| `Ctrl+F` | Find an action |
+| `Escape` | Clear the search |
 | `Ctrl+O` | Open another control plane |
 | `Ctrl+R` | Re-read the repository |
 | `Ctrl+,` | Open the configuration file |
@@ -336,7 +394,7 @@ It edits nothing else in the file. That list sits among the comments explaining 
 |---|---|
 | Cutovers that finished without a rollback | Runs recorded here, against the environments you scope it to, on targets marked `cutover: true` |
 | Cutovers that finished inside a time limit | The same runs, and a limit in seconds |
-| Something this console cannot measure | A sentence saying what it would take. It reports `Setup needed` rather than a number |
+| Something this console cannot measure | A sentence saying what it would take, rather than a number |
 
 The third is not a failure state. An objective with no source is a real thing to declare: availability needs a probe that should not run on a laptop, and saying so is more useful than a number nothing computed.
 
@@ -344,7 +402,7 @@ Saving rewrites the `slos:` block in `.ordane.yml` and touches nothing else in t
 
 ## The rail, the menu, or both
 
-They hold the same rows. It opens with the menu alone, and **Preferences** is where you say otherwise. The rail is faster to read and the menu is out of the way, and neither is wrong. A narrow window folds the rail away and keeps the menu whatever you chose, because nine rows with nowhere to be reached is not a preference.
+The rail holds the places and the menu holds the application: preferences, shortcuts, the guide, and what this is. A window opens with both, and **Preferences** is where you say otherwise. A narrow window folds the rail away and keeps the menu whatever you chose, because places with nowhere to be reached is not a preference.
 
 ## Two people, one environment
 

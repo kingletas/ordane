@@ -32,6 +32,16 @@ from pathlib import Path
 # store that only existed for a test.
 os.environ.setdefault("XDG_CONFIG_HOME", tempfile.mkdtemp(prefix="ordane-smoke-config-"))
 
+# `xvfb-run` sets DISPLAY, but GTK prefers Wayland whenever WAYLAND_DISPLAY is
+# also set — so on a Wayland desktop this opened a window on the real
+# compositor instead of on the virtual display. The window is mapped, sized and
+# correct, and it is never given a frame, so every screenshot reports "nothing
+# painted" and every check that needs a layout pass fails. Naming the backend is
+# what ties this run to the display it was given.
+if os.environ.get("DISPLAY") and os.environ.get("WAYLAND_DISPLAY"):
+    os.environ["GDK_BACKEND"] = "x11"
+
+
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -43,9 +53,8 @@ from ordane.core import inventory as inventory_module  # noqa: E402
 from ordane.desktop import geometry  # noqa: E402
 from ordane.desktop import widgets as w  # noqa: E402
 from ordane.desktop.app import ConsoleApplication, Settings  # noqa: E402
-from ordane.desktop.menu import primary_menu  # noqa: E402
+from ordane.desktop.rail import PLACES, repository_menu  # noqa: E402
 from ordane.desktop.shortcuts import KEYS  # noqa: E402
-from ordane.desktop.sidebar import ENTRIES  # noqa: E402
 from ordane.insight import export  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -229,6 +238,12 @@ def titles(widget: Gtk.Widget) -> list[str]:
     return [row.get_title() for row in rows_under(widget)]
 
 
+def named(widget: Gtk.Widget, css_class: str) -> list[str]:
+    """The text of every label carrying a class, which is what a page is made of
+    now that its rows are boxes rather than libadwaita rows."""
+    return [one.get_text() for one in rows_under(widget, Gtk.Label) if one.has_css_class(css_class)]
+
+
 def has_text(widget: Gtk.Widget, needle: str) -> bool:
     """Whether the needle appears in any label below this widget."""
     for label in rows_under(widget, Gtk.Label):
@@ -260,42 +275,89 @@ def _menu_rows(menu) -> dict[str, str]:
     return found
 
 
-def _rail_rows() -> dict[str, str]:
-    """The same, from the rail."""
-    return {action: label for _, rows in ENTRIES for _, label, action in rows}
+def check_the_rail_holds_places_and_nothing_else(window) -> None:
+    """The rail is places. Everything else is a method on the repository.
 
-
-def check_the_two_lists_agree() -> None:
-    """Preferences says the rail and the menu hold the same rows. Nothing checked it.
-
-    They had drifted: one action was `Run this plane's own checks…` in the rail
-    and `Check this control plane's own checks…` in the menu, and a third name
-    was on the dialog it opened.
+    The design's whole first complaint was a rail of fourteen rows, nine of
+    them ending in an ellipsis because they opened a dialog, while the real
+    navigation sat in the title bar. This is the check that keeps it gone.
     """
-    rail, menu = _rail_rows(), _menu_rows(primary_menu())
-    shared = sorted(set(rail) & set(menu))
-    disagreeing = [a for a in shared if rail[a] != menu[a]]
-    check(
-        f"the rail and the menu label their {len(shared)} shared rows the same",
-        not disagreeing,
-    )
-    for action in disagreeing:
-        print(f"      {action}: rail {rail[action]!r} vs menu {menu[action]!r}")
-
-    # A label used twice in one surface is two doors with one sign on them.
-    for where, rows in (("rail", rail), ("menu", menu)):
-        labels = list(rows.values())
-        repeated = sorted({one for one in labels if labels.count(one) > 1})
-        check(f"no two {where} rows share a label", not repeated)
-        for one in repeated:
-            print(f"      {where}: {one!r}")
-
-    # An icon that means two things in one list is the same defect, drawn.
-    icons = [icon for _, rows in ENTRIES for icon, _, _ in rows]
-    twice = sorted({one for one in icons if icons.count(one) > 1})
-    check("no two rail rows share an icon", not twice)
-    for one in twice:
+    # Only the rows: the repository's own menu hangs off the card at the foot,
+    # and that is exactly where the ellipses are supposed to have gone.
+    labels = [one.get_text() for one in rows_under(window._rail, Gtk.Label) if _in_a_place(one)]
+    dialogs = [one for one in labels if one.endswith("…")]
+    check(f"none of the rail's {len(labels)} rows opens a dialog", not dialogs)
+    for one in dialogs:
         print(f"      {one}")
+    named_places = {name for name in PLACES if name != "—"}
+    check("and every place is one of them", len(labels) >= len(named_places))
+
+
+def _in_a_place(widget: Gtk.Widget) -> bool:
+    """Whether this label is inside one of the rail's own rows."""
+    parent = widget.get_parent()
+    while parent is not None:
+        if parent.has_css_class("place"):
+            return True
+        parent = parent.get_parent()
+    return False
+
+
+def check_every_old_rail_row_is_in_the_palette(window) -> None:
+    """All nine of them, and none of them in the rail. Acceptance criterion 5."""
+    entries = window._entries()
+    titles_of = {entry.title for entry in entries}
+    repository = {entry.title for entry in entries if entry.group == "This repository"}
+    wanted = _menu_rows(repository_menu()).values()
+    missing = [one for one in wanted if one not in titles_of]
+    check(f"all {len(list(wanted))} repository actions are reachable from Ctrl+K", not missing)
+    for one in missing:
+        print(f"      {one}")
+    check("and the palette groups them under `This repository`", len(repository) >= 9)
+
+
+# The widest a place may insist on being. The window opens at 1180 with a
+# 236 px rail, so anything past this cannot be laid out in the window it
+# ships with — and GTK does not refuse it, it draws widgets on top of each
+# other and logs about the overlay exceeding its width.
+WIDEST_PLACE = 820
+
+
+def check_no_place_demands_more_width_than_it_gets(window) -> None:
+    """A place's minimum is the widest thing in it, and one label can set it.
+
+    Three defects in this design had the same shape: a label that neither
+    wraps nor ellipsises reports its whole text as a minimum, that becomes the
+    page's minimum, and the page then asks for more room than any window has.
+    None of them was visible in a screenshot until the layout had already
+    broken, so this measures every place instead of looking at it.
+    """
+    too_wide = []
+    for name in PLACES:
+        if name == "—":
+            continue
+        window.activate_action("page", GLib.Variant.new_string(name))
+        pump(0.4)
+        page = window._stack.get_visible_child()
+        minimum, _natural, _a, _b = page.measure(Gtk.Orientation.HORIZONTAL, -1)
+        if minimum > WIDEST_PLACE:
+            too_wide.append(f"{name}: {minimum} px")
+    check(f"no place insists on more than {WIDEST_PLACE} px", not too_wide)
+    for one in too_wide:
+        print(f"      {one}")
+
+
+def check_no_label_shouts(window) -> None:
+    """No screen contains an all-capitals label. Acceptance criterion 1."""
+    shouting = []
+    for one in rows_under(window, Gtk.Label):
+        text = one.get_text().strip()
+        letters = [c for c in text if c.isalpha()]
+        if len(letters) > 3 and all(c.isupper() for c in letters) and " " in text:
+            shouting.append(text)
+    check("no label on any screen is set in capitals", not shouting)
+    for one in sorted(set(shouting))[:6]:
+        print(f"      {one!r}")
 
 
 def drive(app, repo: Path, shots: Path) -> None:
@@ -316,35 +378,55 @@ def drive(app, repo: Path, shots: Path) -> None:
         any(not e.usable for e in catalog.environments),
     )
 
-    check_the_two_lists_agree()
+    check_the_rail_holds_places_and_nothing_else(window)
+    check_every_old_rail_row_is_in_the_palette(window)
 
     # --- the pages ---
 
-    snapshot(window, shots / "01-health.png")
-    check("the health page leads with a status card", _with_class(page(window), "status-card"))
-    check("which says what state it is in", has_text(page(window), "needs attention"))
-    check("and what it costs", has_text(page(window), "waiting on a source"))
-    check("the environments are beside it", has_text(page(window), "environments"))
+    snapshot(window, shots / "01-overview.png")
+    check("Overview leads with one sentence", _with_class(page(window), "verdict-title"))
+    check(
+        "which says whether it is safe to deploy",
+        has_text(page(window), "deploy") or has_text(page(window), "launched"),
+    )
+    check("and a beacon in one of the four states", _with_class(page(window), "beacon"))
+    check("the environments are a strip of tiles", _with_class(page(window), "env-tile"))
     check(
         "the delivery measures carry the names the industry uses",
-        has_text(page(window), "change failure rate"),
+        has_text(page(window), "release frequency"),
     )
     check(
-        "and a measure with no source says what would fill it, not `no data`",
-        has_text(page(window), "setup needed") and not has_text(page(window), "no data"),
+        "and no card anywhere says `Setup needed`",
+        not has_text(page(window), "setup needed"),
     )
+    check(
+        "a measure with no source says what would fill it, not `no data`",
+        not has_text(page(window), "no data"),
+    )
+    check(
+        "the last day of runs is on the page rather than behind a disclosure",
+        has_text(page(window), "Recent runs"),
+    )
+    check(
+        "and it says so plainly when nothing has run",
+        has_text(page(window), "Nothing has run"),
+    )
+    check_no_label_shouts(window)
+    check_no_place_demands_more_width_than_it_gets(window)
+    window.activate_action("page", GLib.Variant.new_string("overview"))
+    pump(0.3)
 
     window.activate_action("win.page", GLib.Variant.new_string("actions"))
     # Switching a page and filling it are two steps, and on a loaded machine the
     # gap between them is long enough to read an empty page in.
-    until(lambda: "deploy" in titles(page(window)), VIEW_WAIT)
+    until(lambda: "deploy" in named(page(window), "action-name"), VIEW_WAIT)
     # `make help` is a subprocess, and a loaded machine can make it fail. When
     # it does, every check below reports a missing target instead of the one
     # thing that actually went wrong.
     if window._catalog_error:
         check(f"the repository stayed readable: {window._catalog_error}", False)
 
-    listed = titles(page(window))
+    listed = named(page(window), "action-name")
     check("the actions page lists the chosen group's targets", "deploy" in listed)
     check("a hidden target stays hidden", "help" not in listed)
     check("a dangerous target says what it does", has_text(page(window), "Customers see this"))
@@ -356,10 +438,21 @@ def drive(app, repo: Path, shots: Path) -> None:
     window._choose_group("Fleet")
     check(
         "choosing a group shows it",
-        until(lambda: "ping" in titles(page(window)), LAYOUT_WAIT),
+        until(lambda: "ping" in named(page(window), "action-name"), LAYOUT_WAIT),
     )
     window._choose_group("Release")
-    until(lambda: "deploy" in titles(page(window)), LAYOUT_WAIT)
+    until(lambda: "deploy" in named(page(window), "action-name"), LAYOUT_WAIT)
+    check(
+        "the composer says what it will do before it does it",
+        _with_class(page(window), "willdo"),
+    )
+    check(
+        "and its button names its own outcome",
+        any(
+            one.get_text().startswith("Run ") and " on " in one.get_text()
+            for one in rows_under(page(window), Gtk.Label)
+        ),
+    )
 
     # --- search ---
 
@@ -367,7 +460,7 @@ def drive(app, repo: Path, shots: Path) -> None:
     pump(0.4)
     window._search.set_text("ping")
     pump(0.6)
-    found = titles(page(window))
+    found = named(page(window), "action-name")
     check("searching narrows the list", "ping" in found and "flush-cache" not in found)
     check("the best match is first", bool(found) and found[0] == "ping")
     snapshot(window, shots / "03-search.png")
@@ -394,6 +487,24 @@ def drive(app, repo: Path, shots: Path) -> None:
             not has_text(dialog, "none available"),
         )
         check("the run options are there to be opened", has_text(dialog, "Run options"))
+        # A required parameter is still empty here, so there is no command to
+        # show and nothing to press. A preview that printed one anyway would be
+        # offering a line that would be refused.
+        check(
+            "no command is offered while a required field is empty",
+            dialog._preview.get_text().startswith("—"),
+        )
+        check(
+            "and Run is held until there is one",
+            not dialog._run_button.get_sensitive(),
+        )
+        check(
+            "and it says what is missing",
+            "release is required" in (dialog._run_button.get_tooltip_text() or ""),
+        )
+        dialog._fields["release"].set_text("2026-08-28.1")
+        pump(0.4)
+        check("filling it in frees the button", dialog._run_button.get_sensitive())
         # The declared Ansible settings have to be on the preview, not merely in
         # the environment: what is about to run is the thing a person reads here.
         check(
@@ -421,6 +532,76 @@ def drive(app, repo: Path, shots: Path) -> None:
         dialog.close()
         pump(0.4)
 
+    # --- the field that completes, and the paste behind it ---
+    #
+    # None of this is in a screenshot: a popover is its own surface, so a
+    # picture of the window under it shows an empty field either way.
+
+    window._open_launch(catalog.target("patch-fleet"))
+    pump(0.8)
+    dialog = _dialog(window)
+    check(
+        "the patch field is one that can be typed into",
+        dialog is not None and hasattr(dialog._fields.get("patch"), "get_text"),
+    )
+    if dialog is not None and hasattr(dialog._fields.get("patch"), "get_text"):
+        field = dialog._fields["patch"]
+        completer = field._completer
+        field.grab_focus()
+        field.set_text("raise")
+        pump(0.5)
+        offered = _suggested(completer)
+        check("typing narrows the list to what matches", offered == ["raise-php-memory"])
+        check("and the list is open", completer._popover.get_visible())
+
+        completer._take(completer._list, completer._list.get_row_at_index(0))
+        pump(0.3)
+        check("picking one fills the field", field.get_text() == "raise-php-memory")
+        check("and closes the list", not completer._popover.get_visible())
+
+        field.set_text("nothing-like-this")
+        pump(0.5)
+        check("nothing matching offers nothing", _suggested(completer) == [])
+        check("and says so rather than going blank", _has_note(completer, "Nothing here is called"))
+        check("and still offers a way to add one", _can_add(completer))
+
+        # The paste route: a real file written into the repository the plane is.
+        pasted = repo / "patches" / "smoke-pasted.patch"
+        if pasted.exists():
+            pasted.unlink()
+        completer._on_add()
+        pump(0.8)
+        paste = _dialog(window)
+        check("the add row opens a paste dialog", paste is not None and paste is not dialog)
+        if paste is not None and paste is not dialog:
+            paste._name.set_text("smoke-pasted")
+            paste._body.get_buffer().set_text("--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n")
+            paste._on_save(None)
+            pump(0.8)
+            check("pasting writes the file", pasted.is_file())
+            check("and it is readable, not executable", pasted.stat().st_mode & 0o777 == 0o644)
+            check("and the field now holds it", field.get_text() == "smoke-pasted")
+            check("and it is one of the choices", "smoke-pasted" in _suggested(completer, ""))
+
+            # A second one under the same name is refused rather than silently
+            # replacing somebody's patch.
+            completer._on_add()
+            pump(0.8)
+            again = _dialog(window)
+            if again is not None and again is not dialog:
+                again._name.set_text("smoke-pasted")
+                again._body.get_buffer().set_text("--- a/y\n+++ b/y\n@@ -1 +1 @@\n-a\n+b\n")
+                again._on_save(None)
+                pump(0.5)
+                check("a name already on disk is refused", again._error.get_revealed())
+                check("and the dialog stays open", _dialog(window) is again)
+                again.close()
+                pump(0.3)
+            check("the patch on disk was not replaced", "a/x" in pasted.read_text())
+            pasted.unlink()
+        dialog.close()
+        pump(0.4)
+
     # --- a real run, followed to the end ---
 
     window._open_launch(catalog.target("ping"))
@@ -429,7 +610,11 @@ def drive(app, repo: Path, shots: Path) -> None:
     if dialog is not None:
         dialog._on_run_clicked(None)
     pump(0.5)
-    check("the run view opened", window._stack.get_visible_child_name() == "run")
+    check("the run opened on Runs", window._stack.get_visible_child_name() == "runs")
+    check(
+        "and the list marks it as the one being read",
+        until(lambda: window._runs_page.chosen() != "", LAYOUT_WAIT),
+    )
     # One builder can package releases for several environments, so which host
     # made an artefact is not answerable from the environment name later.
     built = until(
@@ -479,6 +664,34 @@ def drive(app, repo: Path, shots: Path) -> None:
     check("a run's output can be searched", found)
     if not found:
         print(f"      search said {window._runview._found.get_text()!r}")
+    # The shape of a run: one lane per host, one cell per task. It is read back
+    # out of the same output the log shows, so it can only be here if the
+    # parser agreed with what Ansible actually printed.
+    # `ping` answers once per host and prints no task headers, so its grid is
+    # one column: a full-width bar per host carrying one bit each, which is
+    # what the outcome pill already says. It is deliberately not drawn, and the
+    # per-host answers go on the page instead of behind a disclosure.
+    settled = until(lambda: window._runview._run.result.has_recap, VIEW_WAIT)
+    check(
+        "a question asked of a host group draws no chart",
+        not window._runview._lanes.get_visible(),
+    )
+    check(
+        "and its per-host answers are on the page rather than folded away",
+        settled and has_text(window._runview, "Every host"),
+    )
+    section = next(
+        (one for one in rows_under(window._runview, w.Section) if has_text(one, "Every host")),
+        None,
+    )
+    check(
+        "which means that section is open",
+        section is not None and section._revealer.get_reveal_child(),
+    )
+    check(
+        "the facts above it print no zero for a host count nobody changed",
+        _with_class(window._runview, "stat-value") is not None,
+    )
     snapshot(window, shots / "05-run.png")
     window._runview._find.set_text("")
     pump(0.3)
@@ -541,8 +754,12 @@ def drive(app, repo: Path, shots: Path) -> None:
     window.activate_action("win.page", GLib.Variant.new_string("runs"))
     window._render(reread_catalog=False)
     pump(0.6)
-    check("the finished run is in the history", "ping" in titles(page(window)))
+    check(
+        "the finished run is in the history",
+        any("ping" in one for one in named(page(window), "runitem-name")),
+    )
     check("grouped under the day it happened on", has_text(page(window), "Today"))
+    check("with the day's own count beside it", has_text(page(window), "runs"))
     snapshot(window, shots / "06-runs.png")
 
     # --- the keyboard, and the sheet that documents it ---
@@ -631,22 +848,25 @@ def drive(app, repo: Path, shots: Path) -> None:
     )
     check(
         "which is what the history is scoped by",
-        has_text(window._plane_button, window._plane.name),
+        has_text(window._rail, window._plane.name),
     )
     check("and root is not what this is running as", not window._actor.is_root)
 
-    # --- the rail, which is a choice rather than what the window opens with ---
+    # --- the rail, which is where the places are ---
 
-    check("the window does not open behind a rail", not window.split.get_show_sidebar())
+    check("the window opens with the rail", window.split.get_show_sidebar())
     check(
-        "and the header says which control plane without one",
-        has_text(window._plane_button, window._plane.name),
+        "which names the repository at the foot of it", has_text(window._rail, window._plane.name)
     )
+    check("and says what git makes of the working tree", _with_class(window._rail, "gitchip"))
+    check("and how old the reading is", has_text(window._rail, "read"))
+    check("and how to reach everything else", has_text(window._rail, "for everything else"))
+    window._choose_navigation(geometry.MENU)
+    pump(0.5)
+    check("choosing the menu alone puts the rail away", not window.split.get_show_sidebar())
     window._choose_navigation(geometry.BOTH)
     pump(0.5)
-    check("choosing the rail brings it back", window.split.get_show_sidebar())
-    check("and it carries the connection card", has_text(window._sidebar, "Connected"))
-    check("which names the checkout", has_text(window._sidebar, "git checkout"))
+    check("and choosing both brings it back", window.split.get_show_sidebar())
     # Waited for rather than slept on: a breakpoint applies on the next layout
     # pass, and a fixed pause makes this fail at random on a busy machine.
     window.set_default_size(760, 700)
@@ -665,7 +885,10 @@ def drive(app, repo: Path, shots: Path) -> None:
 
     window.activate_action("win.page", GLib.Variant.new_string("runs"))
     pump(0.5)
-    check("the history leads with the most recent run", has_text(page(window), "Most recent"))
+    check(
+        "the run beside the list is open without being navigated to",
+        window._runs_page.chosen() != "",
+    )
     window.activate_action("win.runs-filter", GLib.Variant.new_string("failed"))
     pump(0.6)
     check(
@@ -674,32 +897,24 @@ def drive(app, repo: Path, shots: Path) -> None:
     )
     window.activate_action("win.runs-filter", GLib.Variant.new_string("all"))
     pump(0.5)
-    check("and clearing it brings the run back", "ping" in titles(page(window)))
-
-    # --- folding, and the mouse buttons that step back through the pages ---
-
-    section = next(
-        (child for child in rows_under(page(window), w.Section)),
-        None,
+    check(
+        "and clearing it brings the run back",
+        any("ping" in one for one in named(page(window), "runitem-name")),
     )
-    check("the run history is a section that folds", section is not None)
-    if section is not None:
-        # Clicked, not folded: calling `fold` directly is what let an inverted
-        # click ship: the method worked and the button was a no-op both ways.
-        section._toggle.emit("clicked")
-        pump(0.4)
-        check("clicking the heading hides the history", not section._revealer.get_reveal_child())
-        check(
-            "and the choice is written down",
-            "run-history" in geometry.folded(window._settings.state_dir),
-        )
-        section._toggle.emit("clicked")
-        pump(0.4)
-        check("clicking it again brings it back", section._revealer.get_reveal_child())
-        check(
-            "and forgets the fold rather than recording a false",
-            "run-history" not in geometry.folded(window._settings.state_dir),
-        )
+
+    # --- the density rules, which are what keeps a busy day readable ---
+
+    window._runs_page._choose_density("everything")
+    pump(0.5)
+    every = len(named(page(window), "runitem-name"))
+    window._runs_page._choose_density("worth")
+    pump(0.5)
+    worth = len(named(page(window), "runitem-name"))
+    check("`worth a look` never shows more rows than `everything`", worth <= every)
+    check(
+        "and it never hides a run somebody launched by hand",
+        any("ping" in one for one in named(page(window), "runitem-name")),
+    )
 
     # Deliberately not the estate: visiting it asks two databases, and this is
     # a test of where the pages go rather than of what they load.
@@ -724,30 +939,95 @@ def drive(app, repo: Path, shots: Path) -> None:
 
     window.activate_action("win.preferences", None)
     pump(0.7)
-    prefs = _dialog(window)
-    check("preferences opened", prefs is not None)
-    if prefs is not None:
-        snapshot(window, shots / "16-preferences.png")
-        prefs._buttons[geometry.MENU].set_active(True)
-        pump(0.5)
-        check("menu only puts the rail away", not window.split.get_show_sidebar())
-        check("and keeps the menu button", window._hamburger.get_visible())
-        prefs._buttons[geometry.RAIL].set_active(True)
-        pump(0.5)
-        check("rail only brings it back", window.split.get_show_sidebar())
-        check("and takes the menu button away", not window._hamburger.get_visible())
-        prefs._buttons[geometry.BOTH].set_active(True)
-        pump(0.4)
-        check(
-            "both keeps both",
-            window.split.get_show_sidebar() and window._hamburger.get_visible(),
-        )
-        prefs.close()
-        pump(0.3)
+    check(
+        "preferences is a place rather than a dialog",
+        window._stack.get_visible_child_name() == "preferences",
+    )
+    snapshot(window, shots / "16-preferences.png")
+    check("every row in it is wired to something", has_text(page(window), "Reduce motion"))
+    check(
+        "and what is not built is named rather than shown as a dead switch",
+        has_text(page(window), "not settings yet"),
+    )
+
+    window._choose_navigation(geometry.MENU)
+    pump(0.5)
+    check("menu only puts the rail away", not window.split.get_show_sidebar())
+    check("and keeps the menu button", window._hamburger.get_visible())
+    window._choose_navigation(geometry.RAIL)
+    pump(0.5)
+    check("rail only brings it back", window.split.get_show_sidebar())
+    check("and takes the menu button away", not window._hamburger.get_visible())
+    window._choose_navigation(geometry.BOTH)
+    pump(0.4)
+    check(
+        "both keeps both",
+        window.split.get_show_sidebar() and window._hamburger.get_visible(),
+    )
     check(
         "and the choice is remembered",
         geometry.navigation(window._settings.state_dir) == geometry.BOTH,
     )
+
+    # --- the three places that are reached rather than listed ---
+
+    window.activate_action("win.page", GLib.Variant.new_string("environments"))
+    pump(0.6)
+    check("Environments is a place", _with_class(page(window), "obj-row") is not None)
+    check(
+        "and the one that is waiting says what it needs",
+        has_text(page(window), "host source"),
+    )
+    snapshot(window, shots / "29-environments-place.png")
+
+    window.activate_action("win.page", GLib.Variant.new_string("delivery"))
+    pump(0.6)
+    check("Delivery has all four signals", has_text(page(window), "time to restore"))
+    check(
+        "and says what none of them can see",
+        has_text(page(window), "does not read an incident tracker"),
+    )
+    snapshot(window, shots / "30-delivery.png")
+
+    window.activate_action("win.page", GLib.Variant.new_string("setup"))
+    pump(0.6)
+    check("Setup is seven steps", len(window._setup.steps) == 7)
+    check("each saying what it turns on", has_text(page(window), "Turns on"))
+    snapshot(window, shots / "31-setup.png")
+
+    window.activate_action("win.page", GLib.Variant.new_string("about"))
+    pump(0.6)
+    check(
+        "About is a screen rather than a dialog",
+        has_text(page(window), "runs entirely on this machine"),
+    )
+    check("and it names the run history it wrote", has_text(page(window), "runs.jsonl"))
+    snapshot(window, shots / "32-about.png")
+
+    # --- the command palette ---
+
+    window.activate_action("win.palette", None)
+    pump(0.8)
+    palette = _dialog(window)
+    check("Ctrl+K opens the palette", palette is not None)
+    if palette is not None:
+        check("it groups what it offers", has_text(palette, "This repository"))
+        palette._entry.set_text("export")
+        pump(0.5)
+        check(
+            "typing narrows it to what was asked for",
+            any("Export" in entry.title for entry, _ in palette._rows),
+        )
+        palette._entry.set_text("zzzznothing")
+        pump(0.4)
+        check("and a search with no match says so", has_text(palette, "Nothing here is called"))
+        palette._entry.set_text("")
+        pump(0.4)
+        snapshot(window, shots / "33-palette.png")
+        palette.close()
+        pump(0.3)
+    window.activate_action("win.page", GLib.Variant.new_string("runs"))
+    pump(0.3)
 
     # --- the control plane's own checks, in the container it declares ---
 
@@ -1071,7 +1351,7 @@ def drive(app, repo: Path, shots: Path) -> None:
     )
     until(lambda: not window._estate._loading, 20.0)
     pump(0.4)
-    window._stack.set_visible_child_name("dashboard")
+    window._stack.set_visible_child_name("overview")
     pump(0.3)
 
     settings.unlink()
@@ -1314,7 +1594,10 @@ def drive(app, repo: Path, shots: Path) -> None:
     pump(1.2)
     check("a repository that stops being readable says so", has_text(window, "cannot be re-read"))
     check("and the reading is not restamped as current", window._loaded_at == read_at)
-    check("while the views keep what was true a minute ago", "deploy" in titles(page(window)))
+    check(
+        "while the views keep what was true a minute ago",
+        "deploy" in named(window._actions_page, "action-name"),
+    )
     snapshot(window, shots / "11-stale.png")
 
     # It was never readable at all: there is nothing to keep, so the views go.
@@ -1360,6 +1643,36 @@ def _git(repo: Path, *arguments: str) -> None:
     subprocess.run(["git", *arguments], cwd=repo, check=False, capture_output=True)
 
 
+def _suggested(completer, typed=None) -> list:
+    """The values the completer is currently offering."""
+    if typed is not None:
+        from ordane.core.choices import matches
+
+        return matches(typed, completer._choices())
+    found, index = [], 0
+    while (row := completer._list.get_row_at_index(index)) is not None:
+        if getattr(row, "value", ""):
+            found.append(row.value)
+        index += 1
+    return found
+
+
+def _has_note(completer, said: str) -> bool:
+    index = 0
+    while (row := completer._list.get_row_at_index(index)) is not None:
+        child = row.get_child()
+        if child is not None and hasattr(child, "get_text") and said in child.get_text():
+            return True
+        index += 1
+    return False
+
+
+def _can_add(completer) -> bool:
+    """The way to add one is pinned below the scrolling list, not inside it."""
+    row = completer._adds.get_row_at_index(0)
+    return completer._adds.get_visible() and row is not None and getattr(row, "adds", False)
+
+
 def _dialog(window) -> Adw.Dialog | None:
     return window.get_visible_dialog() if hasattr(window, "get_visible_dialog") else None
 
@@ -1370,7 +1683,10 @@ def watch_for_warnings() -> None:
 
 def main() -> int:
     source = Path(sys.argv[1]).expanduser().resolve() if len(sys.argv) > 1 else DEFAULT_REPO
-    shots = Path(sys.argv[2]).expanduser() if len(sys.argv) > 2 else ROOT / "docs" / "images"
+    # `local.d` rather than `docs/images`: a run writes thirty-odd frames, and
+    # only the two the README shows belong in the repository. Those are copied
+    # across by hand once they are worth keeping.
+    shots = Path(sys.argv[2]).expanduser() if len(sys.argv) > 2 else ROOT / "local.d" / "shots"
     shots.mkdir(parents=True, exist_ok=True)
     watch_for_warnings()
 
@@ -1413,6 +1729,15 @@ def main() -> int:
     )
     for kind in kinds[:5]:
         print(f"      {kind}")
+
+    # A run that photographed nothing has verified nothing about the layout, and
+    # a page of `skip` lines reads as a machine short of something rather than
+    # as a run that did not happen. It is a failure.
+    photographs = [one for one in skipped if one.endswith(".png")]
+    check(
+        f"the run actually photographed the window ({len(photographs)} frames missed)",
+        len(photographs) < 3,
+    )
 
     print()
     if skipped:

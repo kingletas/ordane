@@ -110,8 +110,8 @@ def _parser() -> argparse.ArgumentParser:
     _common(app, state=True)
     app.add_argument(
         "--page",
-        choices=("dashboard", "actions", "runs"),
-        default="dashboard",
+        choices=("overview", "actions", "runs", "environments", "estate", "delivery"),
+        default="overview",
         help="the view to open on",
     )
 
@@ -537,7 +537,7 @@ def _app(args, repo: Path) -> int:
             state_dir=args.state_dir.expanduser(),
             events_path=args.events.expanduser(),
             history=args.history,
-            page=getattr(args, "page", "dashboard"),
+            page=getattr(args, "page", "overview"),
         )
     )
 

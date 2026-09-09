@@ -318,6 +318,7 @@ class Runner:
         labels: dict[str, str] | None = None,
         builder: str = "",
         sequence: str = "",
+        origin: str = "hand",
     ) -> ActiveRun:
         """Starts a run, or raises if that environment is already busy.
 
@@ -366,6 +367,7 @@ class Runner:
             dirty=checkout.dirty,
             builder=builder,
             sequence=sequence,
+            origin=origin,
             settings=dict(declared.values),
             labels=labels or {},
         )

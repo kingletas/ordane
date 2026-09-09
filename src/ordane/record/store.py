@@ -50,6 +50,11 @@ class Run:
     # the operation and its postcheck as four records, and without this the
     # only thing relating them is the clock.
     sequence: str = ""
+    # Who asked for it: `hand`, `repeat`, `step` or `schedule`. It decides
+    # whether a row folds into a summary, because a run somebody pressed the
+    # button for is one they will look for afterwards. A record written before
+    # this field existed reads as `hand`, which is what every one of them was.
+    origin: str = "hand"
     # The ANSIBLE_* settings this control plane declared, applied to this run.
     # A run that behaved differently because of them says so on its own record.
     settings: dict[str, str] = field(default_factory=dict)

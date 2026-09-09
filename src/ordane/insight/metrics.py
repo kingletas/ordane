@@ -44,6 +44,10 @@ class Measure:
     detail: str = ""
     blocked: str = ""
     trend: Trend | None = None
+    # The same value split, because a card sets the figure at 38px and its
+    # unit at 16px and cannot do that to one string.
+    number: str = ""
+    unit: str = ""
 
     @property
     def has_data(self) -> bool:
@@ -52,6 +56,11 @@ class Measure:
     @property
     def status(self) -> str:
         return "ok" if self.has_data else "nodata"
+
+    @property
+    def figure(self) -> str:
+        """What a large numeral shows, falling back to the whole value."""
+        return self.number or self.value
 
 
 @dataclass(frozen=True)
@@ -111,6 +120,7 @@ class Snapshot:
     events: list[dict] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     cadence: Series = field(default_factory=Series)
+    lead_time: Series = field(default_factory=Series)
 
     def measure(self, key: str) -> Measure | None:
         return next((m for m in self.measures if m.key == key), None)
@@ -262,7 +272,9 @@ def _cadence(releases: list[Release], scope: list[str]) -> Measure:
         "cadence",
         "Release cadence",
         value=f"{rate:.1f} / month",
-        detail=f"{len(counted)} {where} releases, {dates[0]} to {dates[-1]}",
+        number=f"{rate:.1f}",
+        unit="/month",
+        detail=f"{len(counted)} {where} releases · {dates[0]} → {dates[-1]}",
         trend=_cadence_trend(releases, scope),
     )
 
@@ -292,12 +304,16 @@ def _lead_time(releases: list[Release], scope: list[str]) -> Measure:
             "lead_time",
             "Time to production",
             value=f"{statistics.median(values):.1f} d",
+            number=f"{statistics.median(values):.1f}",
+            unit="days",
             detail=f"median of {len(values)} {_scope_words(scope)} releases, all time",
         )
     return Measure(
         "lead_time",
         "Time to production",
         value=f"{statistics.median(values):.1f} d",
+        number=f"{statistics.median(values):.1f}",
+        unit="days",
         detail=f"median of {len(values)} releases in the last 12 months",
         trend=_lead_time_trend(releases, scope),
     )
@@ -447,31 +463,82 @@ def _cutover_slos(runs: list, slo_specs: list[dict]) -> list[Slo]:
     return slos
 
 
-def cadence_series(releases: list[Release], scope: list[str], months: int = 18) -> Series:
-    """Releases per calendar month, in the configured scope, most recent last."""
-    dated = [(_date(r.date), r) for r in _in_scope(releases, scope)]
-    stamped = [(d, r) for d, r in dated if d is not None]
-    if len(stamped) < 2:
-        return Series()
+# How many months a chart will draw before the bars are thinner than the gaps
+# between them. Past this the shape stops being readable, which is the only
+# thing a chart is for.
+MAX_MONTHS = 24
 
-    counts: dict[str, int] = {}
-    for when, _ in stamped:
-        counts[when.strftime("%Y-%m")] = counts.get(when.strftime("%Y-%m"), 0) + 1
 
-    latest = max(when for when, _ in stamped)
+def _month_keys(stamped: list, months: int) -> list[str]:
+    """The calendar months the data actually covers, oldest first.
+
+    The span is the data's own, not a fixed window: an axis that starts before
+    the first release disagrees with the basis line above it, and a reader has
+    no way to tell which of the two is the measurement.
+    """
+    earliest, latest = min(stamped), max(stamped)
     keys: list[str] = []
     year, month = latest.year, latest.month
-    for _ in range(months):
+    while len(keys) < months:
         keys.append(f"{year:04d}-{month:02d}")
+        if (year, month) <= (earliest.year, earliest.month):
+            break
         month -= 1
         if month == 0:
             year, month = year - 1, 12
     keys.reverse()
+    return keys
 
+
+def cadence_series(releases: list[Release], scope: list[str], months: int = MAX_MONTHS) -> Series:
+    """Releases per calendar month, in the configured scope, most recent last."""
+    stamped = [_date(r.date) for r in _in_scope(releases, scope)]
+    stamped = [when for when in stamped if when is not None]
+    if len(stamped) < 2:
+        return Series()
+
+    counts: dict[str, int] = {}
+    for when in stamped:
+        counts[when.strftime("%Y-%m")] = counts.get(when.strftime("%Y-%m"), 0) + 1
+
+    keys = _month_keys(stamped, months)
     return Series(
         labels=keys,
         values=[float(counts.get(k, 0)) for k in keys],
         caption=f"releases a month, {keys[0]} to {keys[-1]}",
+    )
+
+
+def lead_time_series(releases: list[Release], scope: list[str], months: int = MAX_MONTHS) -> Series:
+    """Median lead time per calendar month, so the figure above it has a shape.
+
+    A month with no release keeps the previous month's median rather than
+    dropping to zero: nothing shipped is not a lead time of nothing.
+    """
+    rows = [
+        (_date(r.date), r.lead_time_days)
+        for r in _in_scope(releases, scope)
+        if r.lead_time_days is not None
+    ]
+    rows = [(when, days) for when, days in rows if when is not None]
+    if len(rows) < 2:
+        return Series()
+
+    per_month: dict[str, list[float]] = {}
+    for when, days in rows:
+        per_month.setdefault(when.strftime("%Y-%m"), []).append(days)
+
+    keys = _month_keys([when for when, _ in rows], months)
+    values: list[float] = []
+    carried = statistics.median(per_month[keys[0]]) if keys[0] in per_month else rows[0][1]
+    for key in keys:
+        if key in per_month:
+            carried = statistics.median(per_month[key])
+        values.append(carried)
+    return Series(
+        labels=keys,
+        values=values,
+        caption=f"median days, {keys[0]} to {keys[-1]}",
     )
 
 
@@ -514,4 +581,5 @@ def snapshot(
         events=events,
         notes=notes,
         cadence=cadence_series(releases, counted),
+        lead_time=lead_time_series(releases, counted),
     )

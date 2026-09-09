@@ -14,7 +14,7 @@ from pathlib import Path
 
 from ..presentation import ansi
 from . import driver as driver_module
-from . import host
+from . import host, makeparams
 
 # `make help` in both control-plane repositories prints the same three blocks.
 _TARGET_LINE = re.compile(r"^ {2}([A-Za-z0-9][A-Za-z0-9_.-]*): (.+)$")
@@ -374,6 +374,22 @@ def discover_playbooks(repo: Path, globs: list[str]) -> list[Playbook]:
     return list(seen.values())
 
 
+def _params_for(name: str, config, documented: dict) -> dict:
+    """Declared parameters, over the ones the Makefile documents for itself.
+
+    A console that could only offer a form for a target somebody had written
+    down twice would be a config file with a window on it.
+    """
+    from .config import Param
+
+    params = {
+        found.name: Param(name=found.name, required=found.required, example=found.example)
+        for found in documented.get(name, {}).values()
+    }
+    params.update(config.params_for(name))
+    return params
+
+
 def build(repo: Path, config) -> Catalog:  # noqa: ANN001 - config is a Config, imported lazily
     """Reads the repository and returns everything the interface can offer.
 
@@ -382,6 +398,7 @@ def build(repo: Path, config) -> Catalog:  # noqa: ANN001 - config is a Config, 
     """
     found, discovery, help_text = _discover(repo, config)
     targets, environments, shortcuts = found
+    documented = makeparams.read(repo, config.environment_var)
 
     targets = [
         Target(
@@ -389,7 +406,7 @@ def build(repo: Path, config) -> Catalog:  # noqa: ANN001 - config is a Config, 
             description=t.description,
             group=config.group_for(t.name),
             danger=config.danger_for(t.name),
-            params=config.params_for(t.name),
+            params=_params_for(t.name, config, documented),
             dry_run=config.supports_dry_run(t.name) or bool(t.source),
             fixed_environment=config.fixed_environment(t.name),
             source=t.source,

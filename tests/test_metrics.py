@@ -2,7 +2,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 from ordane.insight import metrics
-from ordane.insight.metrics import Release, read_events, read_history, snapshot
+from ordane.insight.metrics import MAX_MONTHS, Release, read_events, read_history, snapshot
 from ordane.record.store import Run
 
 CSV = (
@@ -149,9 +149,35 @@ def test_the_cadence_series_counts_production_releases_by_month(tmp_path):
     )
     series = snap.cadence
     assert series
-    assert len(series.labels) == len(series.values) == 18
+    assert len(series.labels) == len(series.values)
     assert series.labels[-1] == "2026-08"
     assert series.values[-1] == 1.0
+
+
+def test_the_series_spans_the_data_rather_than_a_fixed_window(tmp_path):
+    """An axis that starts before the first release disagrees with the basis
+    line above it, and a reader has no way to tell which is the measurement."""
+    history = tmp_path / "history.csv"
+    history.write_text(CSV)
+    snap = snapshot(
+        history_path=history, events_path=tmp_path / "none.jsonl", runs=[], slo_specs=[]
+    )
+    for series in (snap.cadence, snap.lead_time):
+        if not series:
+            continue
+        assert series.labels[-1] == "2026-08"
+        assert len(series.labels) <= MAX_MONTHS
+        assert series.caption.endswith(f"{series.labels[0]} to {series.labels[-1]}")
+
+
+def test_the_series_never_grows_past_what_a_chart_can_draw(tmp_path):
+    """2020 to 2026 is 80 months, and 80 bars in 460 px is a smear."""
+    history = tmp_path / "history.csv"
+    history.write_text(CSV)
+    series = snapshot(
+        history_path=history, events_path=tmp_path / "none.jsonl", runs=[], slo_specs=[]
+    ).cadence
+    assert len(series.values) == MAX_MONTHS
 
 
 def test_a_month_with_no_release_is_a_zero_not_a_gap(tmp_path):

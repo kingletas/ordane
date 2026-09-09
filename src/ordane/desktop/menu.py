@@ -1,8 +1,7 @@
-"""The primary menu, the shortcuts sheet and the about dialog.
+"""The primary menu and the shortcuts sheet.
 
-The menu is grouped by what somebody opened it to do rather than by which part
-of the code owns each row, and every accelerator in it is drawn from the
-shortcut table, so a menu row cannot name a key the window does not bind.
+Every accelerator in either is drawn from the shortcut table, so a row cannot
+name a key the window does not bind.
 """
 
 from __future__ import annotations
@@ -16,39 +15,29 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
-from .. import __version__  # noqa: E402
-from ..core.config import CONFIG_NAME
-from ..presentation.language import OWN_CHECKS, PLANE  # noqa: E402
 from . import widgets as w  # noqa: E402
-from .app_id import APP_ID  # noqa: E402
 from .shortcuts import KEYS, by_group  # noqa: E402
 
 PROJECT = "https://github.com/kingletas/ordane"
 
 
 def primary_menu(others: list[Path] | None = None) -> Gio.Menu:
-    """Four sections: what you are looking at, what drives it, which one, and help."""
+    """What is neither a place nor a method on the repository.
+
+    The places are in the rail, and everything the repository can be asked to
+    do is on its own card and in the command palette. What is left is the
+    application: how it behaves, how to drive it, and what it is.
+    """
     menu = Gio.Menu()
 
     looking = Gio.Menu()
-    looking.append("Find a target", "win.find")
-    looking.append("Re-read the repository", "win.refresh")
+    looking.append("Search or run a command", "win.palette")
+    looking.append("Find an action", "win.find")
     menu.append_section(None, looking)
-
-    driving = Gio.Menu()
-    driving.append(f"Run {OWN_CHECKS}…", "win.checks")
-    driving.append("Choose what runs…", "win.refs")
-    driving.append("Manage environments…", "win.environments")
-    driving.append("Set up objectives…", "win.objectives")
-    driving.append("Point at the shared stores…", "win.stores")
-    driving.append("Export the history…", "win.export")
-    driving.append(f"Open {CONFIG_NAME}", "win.configure")
-    driving.append("Open the repository folder", "win.folder")
-    menu.append_section(f"This {PLANE}", driving)
 
     switching = Gio.Menu()
     switching.append("Open another control plane…", "win.open")
-    switching.append("Open from a git URL…", "win.clone")
+    switching.append("Clone from a git URL…", "win.clone")
     for path in others or []:
         # The name alone: the full path is the row's tooltip in the chooser,
         # and a menu of absolute paths is unreadable.
@@ -58,7 +47,6 @@ def primary_menu(others: list[Path] | None = None) -> Gio.Menu:
     menu.append_section("Another one" if others else None, switching)
 
     helping = Gio.Menu()
-    helping.append(f"Check this {PLANE}", "win.checkup")
     helping.append("Preferences", "win.preferences")
     helping.append("Keyboard shortcuts", "win.shortcuts")
     helping.append("User guide", "win.guide")
@@ -93,26 +81,3 @@ class ShortcutsDialog(Adw.Dialog):
         toolbar.add_top_bar(Adw.HeaderBar())
         toolbar.set_content(w.sheet(body))
         self.set_child(toolbar)
-
-
-def about_dialog(repo) -> Adw.AboutDialog:
-    """What this is, in two sentences, plus where the repository it drives lives."""
-    dialog = Adw.AboutDialog(
-        application_name="Ordane",
-        application_icon=APP_ID,
-        developer_name="Luis Tineo",
-        version=__version__,
-        website=PROJECT,
-        issue_url=f"{PROJECT}/issues",
-        license_type=Gtk.License.MIT_X11,
-        comments=(
-            "A console for an Ansible control plane, with or without a Makefile.\n\n"
-            "It replaces nothing. Where there is a Makefile it reads what `make help` "
-            "already prints and runs make for you; where there is not, the playbooks "
-            "are the catalogue and it runs ansible-playbook directly. Either way it "
-            "shows the command first, streams the output, and keeps the record.\n\n"
-            f"Driving: {repo}"
-        ),
-    )
-    dialog.set_copyright("© 2026 Luis Tineo")
-    return dialog
