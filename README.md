@@ -78,7 +78,7 @@ Yes, and it does not need a Makefile. Point it at a repository and run:
 ordane init --repo ~/your/control-plane
 ```
 
-That writes a starting `.ordane.yml` describing what it actually found, and tells you the one thing left to decide.
+You get a starting `.ordane.yml` describing what it actually found, and it tells you the one thing left to decide.
 
 If there is no Makefile, Ordane drives `ansible-playbook` directly. The targets are your playbooks, named by the first play in each, the environments are your inventory directories, and a run is `ansible-playbook -i <inventory> <playbook>`. The only file it ever writes into your repository is its own configuration; your playbooks are read and never edited.
 
@@ -117,7 +117,7 @@ Three ways, and `make install` is the one for working on it:
 make install
 ```
 
-That puts a wrapper in `~/bin` which runs this source tree through `uv`, plus a desktop entry and icon under `~/.local/share` so it appears in your launcher. There is only one copy of the code: edit it here and reinstall, and never edit the installed file.
+You get a wrapper in `~/bin` which runs this source tree through `uv`, plus a desktop entry and icon under `~/.local/share` so it appears in your launcher. There is only one copy of the code: edit it here and reinstall, and never edit the installed file.
 
 `ordane` with no argument reopens the last control plane you opened, which is what the launcher entry runs.
 
