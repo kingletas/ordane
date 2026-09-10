@@ -64,6 +64,7 @@ The other reason is that `make` is a risky interface for something that reaches 
 | [User guide](docs/user-guide.md) | Every view, every key, in plain words |
 | [Configuration](docs/configuration.md) | `.ordane.yml`, key by key |
 | [Architecture](docs/architecture.md) | One engine, three front ends, and how a change gets made |
+| [Why Ordane exists](docs/why.md) | The problem it was built for, and why not AWX |
 | [The example control plane](examples/control-plane/README.md) | A small one that reaches nothing, so you can click anything |
 | [The fleet example](examples/fleet/README.md) | A bigger one whose runs reach fourteen containers and change them |
 | [Security](SECURITY.md) | The model, and what it makes load-bearing |
