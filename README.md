@@ -62,6 +62,7 @@ The other reason is that `make` is a risky interface for something that reaches 
 | [From nothing to a deploy](docs/from-nothing.md) | You have no playbooks and no Ansible experience. Start here |
 | [Getting started](docs/getting-started.md) | You already have a control plane. Point Ordane at it |
 | [User guide](docs/user-guide.md) | Every view, every key, in plain words |
+| [Examples](docs/examples.md) | A recipe for each everyday task, a control plane's own runbooks, and scripting it |
 | [Configuration](docs/configuration.md) | `.ordane.yml`, key by key |
 | [Architecture](docs/architecture.md) | One engine, three front ends, and how a change gets made |
 | [Why Ordane exists](docs/why.md) | The problem it was built for, and why not AWX |
