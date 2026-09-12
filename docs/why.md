@@ -16,11 +16,11 @@ That is a real gap and it is not a tooling failure. A terminal is doing exactly 
 
 Because this problem is precisely AWX's problem, and the honest first answer was to install it. Two things were in the way.
 
-**AWX stopped cutting releases on 2 July 2024**, and says so at the top of its own README.
+**AWX's releases are paused, and that is not the same as abandoned.** Its last release was 2 July 2024, and a caution at the top of its own README says releases are paused during a large-scale refactor into a pluggable, service-oriented architecture. The project is worked on daily. What that costs anyone adopting it today is the choice between a release over a year old and tracking a refactor that is still in progress.
 
-And it is enormous. Reproducing what it does means reproducing a product built by roughly 280 contributors over nine years, standing at about 6.8 MB of Python. Adopting it means a prerequisites project of its own, because a Git-backed control plane can only drive automation that is actually in Git and in the shape it expects — which is a weeks-long content project before anything is deployed through it.
+And it is large. Reproducing what it does means reproducing a product built by roughly 280 contributors since 2017, standing at about 6.4 MB of Python. Adopting it means a prerequisites project of its own, because a Git-backed control plane can only drive automation that is actually in Git and in the shape it expects — which is a weeks-long content project before anything is deployed through it.
 
-The comparison stands as the reason **not to build a platform**. Sixteen of seventeen requirement areas in the original specification mapped onto AWX features that shipped years ago. Anything that reaches for that scope is reaching for something that already exists and is not maintained.
+The comparison stands as the reason **not to build a platform**. Sixteen of seventeen requirement areas in the original specification mapped onto AWX features that shipped years ago, so anything reaching for that scope is rebuilding what already exists.
 
 ## Why not the enterprise version of this
 
