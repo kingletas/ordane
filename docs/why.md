@@ -16,7 +16,7 @@ That is a real gap and it is not a tooling failure. A terminal is doing exactly 
 
 Because this problem is precisely AWX's problem, and the honest first answer was to install it. Two things were in the way.
 
-**AWX's releases are paused, and that is not the same as abandoned.** Its last release was 2 July 2024, and a caution at the top of its own README says releases are paused during a large-scale refactor into a pluggable, service-oriented architecture. The project is worked on daily. What that costs anyone adopting it today is the choice between a release over a year old and tracking a refactor that is still in progress.
+AWX's releases are paused, and that is not the same as abandoned. Its last release was 2 July 2024, and a caution at the top of its own README says releases are paused during a large-scale refactor into a pluggable, service-oriented architecture. The project is worked on daily. What that costs anyone adopting it today is the choice between a release over a year old and tracking a refactor that is still in progress.
 
 And it is large. Reproducing what it does means reproducing a product built by roughly 280 contributors since 2017, standing at about 6.4 MB of Python. Adopting it means a prerequisites project of its own, because a Git-backed control plane can only drive automation that is actually in Git and in the shape it expects — which is a weeks-long content project before anything is deployed through it.
 
@@ -48,15 +48,3 @@ To ordain is not to describe a thing. It is to make the thing so by saying it. E
 That is the whole of this program. It takes the command out of your shell, holds it up, and reads it back to you before a single host is touched. It watches while it runs. It keeps the record, so the deploy outlives the terminal.
 
 Everything else here is machinery in service of those two moments — the one before, and the one after.
-
-### The word is invented, and the meaning came second
-
-That is the honest order of events, and it is worth stating rather than implying an etymology the word does not have. **The name had to be made up, and that was a requirement rather than a flourish.**
-
-The working name described what the tool drives, which is a bad idea for something whose whole purpose is reaching production hosts: a name that advertises what a program can touch is an invitation to look at it. So the tool needed a name that was broad enough to cover Ansible, Terraform, Kubernetes and runbooks without naming any of them.
-
-The first candidate was Veyra, and it failed a check rather than a taste test. Five software companies use it, one of them selling developer tooling, plus PyPI, npm and three live domains. Ordane cleared everywhere that matters — the only holders of the word are in accounting, tabletop gaming and fashion.
-
-That check is worth repeating before adopting any name: package registries, GitHub, domains, and an open-web company search. A name that collides is a name you will be renaming later, under worse conditions.
-
-One compatibility note follows from the rename. An existing control plane still carries the former configuration filename, so that name is still read — and `ordane doctor` names it rather than accepting it in silence.
