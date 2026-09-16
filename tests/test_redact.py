@@ -2,13 +2,14 @@ from ordane.record.redact import MASK, Redactor
 
 
 def test_an_env_assignment_is_masked():
-    out = Redactor().line("YOTTA_API_KEY=abc123def456ghi")
+    out = Redactor().line("YOTTA_API_KEY=abc123def456ghi")  # pragma: allowlist secret
     assert "abc123def456ghi" not in out
     assert "YOTTA_API_KEY" in out and MASK in out
 
 
 def test_an_exported_password_is_masked():
-    assert "hunter2hunter2" not in Redactor().line("export PASSWORD=hunter2hunter2")
+    line = "export PASSWORD=hunter2hunter2"  # pragma: allowlist secret
+    assert "hunter2hunter2" not in Redactor().line(line)
 
 
 def test_a_yaml_style_secret_is_masked():
