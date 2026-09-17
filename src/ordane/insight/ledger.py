@@ -667,9 +667,7 @@ def _step_detail(entry: Entry) -> str:
     if event == "approval.verified":
         return f"signed tag {entry.get('tag')}"
     if event == "build.succeeded":
-        return (
-            f"commit {_short(str(entry.get('commit')))} on {entry.get('builder') or 'the builder'}"
-        )
+        return f"commit {_short(str(entry.get('commit')))}"
     if event == "cutover.started":
         window = entry.flag("maintenance_window")
         return (

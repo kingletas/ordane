@@ -265,6 +265,26 @@ The list on the left is each ledger and its deploys, newest first. Choose one an
 
 Under the answers is the flow itself: one line per step, with its time, its detail and the person or host behind it. Anything you might want to paste, like a commit, a checksum, a signing key or a backup id, is listed at the foot with a copy button.
 
+### What a full record looks like
+
+Ordane reads whatever the playbook wrote and never fills a gap in. A deploy that recorded every step carries nine kinds of record, and an absence is worth reading rather than skipping:
+
+| Record | Written when | What its absence means |
+|---|---|---|
+| Deploy requested | every deploy, at the start | nothing: without it there is no deploy here to read |
+| Approval checked | the environment requires a signed approval | approval is off for this environment, or the deploy stopped before the check |
+| Built | the release archive was built and checksummed | the deploy stopped before the build |
+| Cutover began | the web hosts started switching over | the deploy never reached the hosts |
+| Backed up | the environment's backup rule asked for one | the rule did not ask, or the deploy stopped first. A backup that failed is recorded too, and stops the deploy |
+| Maintenance on | the release needed a database or configuration change | nothing needed one, so the site stayed up |
+| Went live | the new release is the one serving | the cutover did not complete |
+| Caches warmed | the warm-up is on for this environment | it is off, or the deploy did not get that far |
+| Finished | the playbook reached its end | the deploy stopped, or is still running |
+
+A tenth, **Verified**, comes from the checks that run after a deploy, which are a separate playbook run and may be somebody else. Until they pass, the page says *Not yet*.
+
+So three of these are environment settings rather than faults: approval, the backup rule, and the warm-up. **Ordane cannot tell a setting from a failure**, which is why every absence is worded as what is missing rather than as something going wrong. If you want a deploy that exercises all nine, turn those three on in the environment first.
+
 Under that is how long deploys take in this environment: the typical figure for each span, its fastest and slowest, and how many deploys it was measured over. A span nothing has reached says so rather than showing zero, and a deploy whose records sit after a break in the chain is left out of every figure. **A span measured as zero and a span nobody can measure are different things, and the page says which**: the first reads *under a second*, the second reads *not measured*.
 
 The maintenance window leads wherever a timing is shown, because it is the only span customers experience.
