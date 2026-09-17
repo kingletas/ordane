@@ -33,8 +33,14 @@ UNREADABLE = "unreadable"
 
 SUCCEEDED = "succeeded"
 BUILT_ONLY = "built-only"
+# The deploy finished and its record does not say how, or says it did not work.
+FINISHED = "finished"
+FAILED = "failed"
 STOPPED = "stopped"
 UNFINISHED = "unfinished"
+# Records in the ledger that no deploy.started opened: a warm-up run on its
+# own, or a verify of a release deployed before this log began.
+RECORDS_ONLY = "records"
 
 # Where a playbook's inventories declare `audit.path`, read as the files are.
 INVENTORY_VARS = (
@@ -282,9 +288,18 @@ class Deployment:
 
     @property
     def outcome(self) -> str:
+        if self.first("deploy.started") is None:
+            return RECORDS_ONLY
         finished = self.finished
-        if finished is not None and str(finished.get("outcome")) == "success":
-            return SUCCEEDED if self.goes_live else BUILT_ONLY
+        if finished is not None:
+            said = str(finished.get("outcome") or "")
+            if said == "success":
+                return SUCCEEDED if self.goes_live else BUILT_ONLY
+            # A finish is a finish. What it says about itself is a separate
+            # question from whether it happened, and reading a finish with no
+            # outcome as *no finish* calls a deploy unfinished while its last
+            # record sits there saying otherwise.
+            return FINISHED if not said else FAILED
         if self.backup_failed is not None:
             return STOPPED
         return UNFINISHED
@@ -411,10 +426,12 @@ def deployments(chain: Chain) -> list[Deployment]:
             attempts.append([entry])
             continue
         current = attempts[-1] if attempts else None
+        # Records with no deploy.started before them are not a deploy, and one
+        # group of them beats a row each: the playbook's own warm-up suite
+        # leaves four, and four rows read as four deploys that never finished.
         joins = (
             current is not None
             and entry.event != "deploy.started"
-            and current[0].event == "deploy.started"
             and (not entry.release or entry.release == current[0].release)
         )
         if joins:
@@ -832,9 +849,12 @@ def _backup(d: Deployment) -> Answer:
 
 def _did_it_work(d: Deployment) -> Answer:
     word = language.ledger_outcome(d.outcome)
-    level = {SUCCEEDED: language.OK, BUILT_ONLY: language.OK, STOPPED: language.PROBLEM}.get(
-        d.outcome, language.ATTENTION
-    )
+    level = {
+        SUCCEEDED: language.OK,
+        BUILT_ONLY: language.OK,
+        STOPPED: language.PROBLEM,
+        FAILED: language.PROBLEM,
+    }.get(d.outcome, language.ATTENTION)
     detail = word.meaning
     warm = d.warmup
     if warm is not None:

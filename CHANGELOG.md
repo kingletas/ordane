@@ -14,6 +14,8 @@ A deploy playbook that keeps its own record of what it did now has a place to be
 - `ordane ledger` prints every deploy and exits 2 when a chain is broken, so it can run from a scheduled job. `ordane ledger last`, or a release id, prints one deploy in full. The browser console has the same two pages.
 - `ledgers:` in `.ordane.yml` names the files. Without it Ordane reads the `audit.path` each inventory's `group_vars` already declares, so a playbook that keeps a ledger needs no configuration at all. A path built from a variable this console cannot resolve is listed as one it could not resolve, rather than guessed at.
 - **How long each deploy took, derived from the ledger's own stamps**: the maintenance window, the cutover, the build, the whole deploy, the warm-up, and the wait until somebody verified it. Each ledger also reports the typical figure for each span with its range and how many deploys it was measured over. A phase with a record at only one end is not timed, a span nothing has reached says so instead of showing zero, and a deploy sitting after a break in the chain counts towards nothing.
+- A deploy whose `deploy.finished` carries no outcome reads as **Finished**, and one whose record says otherwise as **Did not succeed**. Reading either as *no finish recorded* called a deploy unfinished while its last record sat there saying otherwise.
+- Records with no `deploy.started` behind them are one group called **Records only**, rather than a row each. A warm-up suite leaves four, and four rows read as four deploys that never finished.
 - `make demo` seeds two ledgers with invented deploys, including one stopped by a failed backup and one nobody has finished.
 
 ## [0.2.0]: 2026-09-08

@@ -5,7 +5,7 @@ from __future__ import annotations
 from ..insight import ledger
 from ..presentation import language
 from ..presentation.text import moment, plural
-from .console import BOLD, DIM, GREEN, OFF, RED, YELLOW, heading
+from .console import BLUE, BOLD, DIM, GREEN, OFF, RED, YELLOW, heading
 
 LEVEL_MARK = {
     language.OK: f"{GREEN}✓{OFF}",
@@ -17,6 +17,8 @@ LEVEL_MARK = {
 OUTCOME_COLOUR = {
     ledger.SUCCEEDED: GREEN,
     ledger.BUILT_ONLY: GREEN,
+    ledger.FINISHED: BLUE,
+    ledger.FAILED: RED,
     ledger.STOPPED: RED,
     ledger.UNFINISHED: YELLOW,
 }

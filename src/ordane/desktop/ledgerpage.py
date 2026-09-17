@@ -30,6 +30,9 @@ ANSWER_COLUMNS = 2
 OUTCOME_PILL = {
     ledger.SUCCEEDED: "ok",
     ledger.BUILT_ONLY: "ok",
+    ledger.FINISHED: "wait",
+    ledger.RECORDS_ONLY: "mute",
+    ledger.FAILED: "fail",
     ledger.STOPPED: "fail",
     ledger.UNFINISHED: "warn",
 }

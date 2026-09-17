@@ -534,3 +534,58 @@ def test_records_after_a_break_are_left_out_of_the_timings(tmp_path):
     found = {t.key: t for t in ledger.timings(ledger.deployments(chain))}
     assert found["maintenance"].samples == 1
     assert found["maintenance"].typical == 8 * 60
+
+
+def test_a_finish_with_no_outcome_is_a_finish(tmp_path):
+    """The playbook's own test fixture writes one, and reading it as *no finish*
+    called a deploy unfinished while its last record sat there saying otherwise."""
+    records = a_full_deploy()
+    records[-1].pop("outcome")
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+    [deployment] = ledger.deployments(chain)
+
+    assert deployment.outcome == ledger.FINISHED
+    said = answer(deployment, chain, "Did it work?")
+    assert said.answer == "Finished"
+    assert "does not say how" in said.detail
+    assert said.level == language.ATTENTION
+
+
+def test_a_finish_that_says_it_did_not_work_is_a_problem(tmp_path):
+    records = a_full_deploy()
+    records[-1]["outcome"] = "failed"
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+    [deployment] = ledger.deployments(chain)
+
+    assert deployment.outcome == ledger.FAILED
+    said = answer(deployment, chain, "Did it work?")
+    assert (said.answer, said.level) == ("Did not succeed", language.PROBLEM)
+
+
+def test_a_deploy_with_no_finish_record_at_all_still_reads_as_unfinished(tmp_path):
+    """The quiet direction: the fix must not turn a missing finish into a finish."""
+    records = [r for r in a_full_deploy() if r["event"] != "deploy.finished"]
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+    assert ledger.deployments(chain)[0].outcome == ledger.UNFINISHED
+
+
+def test_records_with_no_deploy_behind_them_are_one_group_that_says_so(tmp_path):
+    """The playbook's warm-up suite leaves four, and four rows read as four deploys."""
+    records = [event("warmup.completed", "r9", requested=4, ok=3, percent=75.0) for _ in range(4)]
+    chain = ledger.read(write_chain(tmp_path / "test.audit.jsonl", records))
+    [group] = ledger.deployments(chain)
+
+    assert group.outcome == ledger.RECORDS_ONLY
+    assert len(group.entries) == 4
+    assert language.ledger_outcome(group.outcome).name == "Records only"
+
+
+def test_a_deploy_after_loose_records_is_still_its_own_deploy(tmp_path):
+    """The quiet direction: folding orphans must not swallow the deploy after them."""
+    records = [event("warmup.completed", "r9", requested=1, ok=1), *a_full_deploy("r1")]
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+    newest, older = ledger.deployments(chain)
+
+    assert (newest.release, newest.outcome) == ("r1", ledger.SUCCEEDED)
+    assert older.outcome == ledger.RECORDS_ONLY
+    assert len(newest.entries) == 6

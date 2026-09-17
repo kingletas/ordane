@@ -180,6 +180,12 @@ LEDGER_OUTCOMES = {
     "built-only": Word(
         "Built, not live", "The deploy finished without making the release live, as asked."
     ),
+    "finished": Word("Finished", "The deploy finished. Its own record does not say how it went."),
+    "failed": Word("Did not succeed", "The deploy finished and its record says it did not work."),
+    "records": Word(
+        "Records only",
+        "Records with no deploy behind them in this ledger: nothing here opened a deploy.",
+    ),
     "stopped": Word(
         "Stopped",
         "The deploy stopped itself before the release went live, so the old one kept serving.",
