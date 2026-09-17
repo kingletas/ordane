@@ -34,10 +34,11 @@ RUNS = "runs"
 ENVIRONMENTS = "environments"
 ESTATE = "estate"
 DELIVERY = "delivery"
+LEDGER = "ledger"
 
 # The places, and the divider that separates what you do from what is managed.
 SEPARATOR = "—"
-PLACES = (OVERVIEW, ACTIONS, RUNS, SEPARATOR, ENVIRONMENTS, ESTATE, DELIVERY)
+PLACES = (OVERVIEW, ACTIONS, RUNS, SEPARATOR, ENVIRONMENTS, ESTATE, DELIVERY, LEDGER)
 
 NAMES = {
     OVERVIEW: "Overview",
@@ -46,6 +47,7 @@ NAMES = {
     ENVIRONMENTS: "Environments",
     ESTATE: "Estate",
     DELIVERY: "Delivery",
+    LEDGER: "Ledger",
 }
 
 MANAGED_NOTE = "What Ordane manages"

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block body %}
+<h1><code>{{ deployment.release }}</code></h1>
+<p class="muted">{{ book.environment }} — started {{ deployment.started_at | moment }}. <a href="/ledger">Back to the ledger</a></p>
+
+<h2>How it went</h2>
+<table>
+  <thead><tr><th>Step</th><th>When</th><th>What it says</th><th>Who</th></tr></thead>
+  <tbody>
+  {% for step in steps %}
+    <tr>
+      <td>{{ step.name }}</td>
+      <td>{{ step.at | moment }}</td>
+      <td>{{ step.detail }}{% if not step.trusted %} <span class="muted">(after the break)</span>{% endif %}</td>
+      <td>{% if step.worth_naming %}<span class="muted">{{ step.role }}</span> {{ step.who }}{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>What the records say</h2>
+<table>
+  <tbody>
+  {% for answer in answers %}
+    <tr>
+      <td>{{ answer.question }}</td>
+      <td><strong>{{ answer.answer }}</strong><br><span class="muted small">{{ answer.detail }}</span></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

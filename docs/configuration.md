@@ -16,6 +16,7 @@ The [example](../examples/control-plane/.ordane.yml) is a working file with ever
 - [targets](#targets)
 - [params](#params)
 - [playbooks](#playbooks)
+- [ledgers](#ledgers)
 - [metrics and slos](#metrics-and-slos)
 - [ansible](#ansible)
 
@@ -166,6 +167,19 @@ playbook_command: [bin/run-playbook, "{playbook}"]
 ```
 
 Which files count as a playbook, and how a bare one is run. `{playbook}` and `{environment}` are substituted; every other element is passed through as it is written.
+
+## ledgers
+
+```yaml
+ledgers:
+  - ~/.local/state/control-plane/*.audit.jsonl
+```
+
+Where the deploy ledgers are: the hash-chained audit logs a deploy playbook appends to, usually one per environment. Each entry is a path or a glob. A relative one is read from the repository, and `~` is your home folder.
+
+Leave it out and Ordane reads `audit.path` from each inventory's `group_vars`, which is where a playbook that keeps a ledger already says it is. Only `{{ playbook_dir }}` and `~` are filled in. A path built from any other variable is listed on the Ledger page as one it could not resolve, rather than guessed at.
+
+`ordane ledger --ledger PATH` reads a file you name instead of either, which is how you look at one somebody sent you.
 
 ## metrics and slos
 

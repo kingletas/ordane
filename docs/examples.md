@@ -18,6 +18,7 @@ Every recipe below was run against the two control planes that ship with Ordane:
     - [Rehearse without changing anything](#rehearse-without-changing-anything)
     - [Read what has run](#read-what-has-run)
     - [Run something again](#run-something-again)
+    - [Find out who deployed what](#find-out-who-deployed-what)
     - [Ask an environment whether its hosts are there](#ask-an-environment-whether-its-hosts-are-there)
     - [The dashboard, in this terminal](#the-dashboard-in-this-terminal)
     - [When something is wrong](#when-something-is-wrong)
@@ -201,6 +202,23 @@ ordane again last --repo examples/control-plane --failed-hosts
 ```
 
 The command comes from what the run recorded, not from rebuilding it. Two cases are refused rather than guessed at: a run whose command carried a secret, because what was written down isn't what ran, and a `make`-driven run handed a host limit its wrapper might ignore.
+
+### Find out who deployed what
+
+```bash
+ordane ledger --repo ~/control-plane
+ordane ledger last --repo ~/control-plane
+```
+
+The first lists every deploy the playbook recorded, per environment, with who ran it and who approved it, and says whether each ledger's chain of hashes still holds. The second prints one deploy in full: who, what went out, whether it is what was approved and built, whether the site went into maintenance, whether a backup was taken, how it ended, and the flow it was all read from. Pass a release id instead of `last` for a particular one.
+
+Nothing here writes to a ledger. The deploy playbook does, which is why a deploy somebody ran from a terminal appears in it as well as one launched from the console.
+
+```bash
+ordane ledger --repo ~/control-plane || echo "a ledger has been changed"
+```
+
+It exits 2 when a chain is broken, so it can run from a scheduled job. See [Ledger](user-guide.md#ledger) for what the page shows, and [`ledgers`](configuration.md#ledgers) for pointing it at a file somewhere unusual.
 
 ### Ask an environment whether its hosts are there
 

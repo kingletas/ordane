@@ -96,6 +96,17 @@ def delivery(context) -> None:
     context.stroke()
 
 
+def ledger(context) -> None:
+    """Three linked records: a chain that shows where it was cut."""
+    for top in (1.8, 6.3, 10.8):
+        _rounded(context, 2.5, top, 11, 3.4, 1.2)
+        context.stroke()
+    for y in (5.2, 9.7):
+        context.move_to(8, y)
+        context.line_to(8, y + 1.1)
+    context.stroke()
+
+
 def repository(context) -> None:
     """A git node above another: the thing the console is pointed at."""
     _circle(context, 8, 4, 2)
@@ -141,6 +152,7 @@ SHAPES = {
     "environments": environments,
     "estate": estate,
     "delivery": delivery,
+    "ledger": ledger,
     "repository": repository,
     "search": search,
     "refresh": refresh,

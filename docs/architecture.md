@@ -25,6 +25,7 @@ The files on disk are the source of truth. The console keeps no registry of its 
 | The choice lists | `patches/*.patch`, the inventory, the release directory |
 | Release history | `docs/dora/history.csv` |
 | Deployment events | the DORA event log |
+| Who deployed what, and who approved it | the deploy ledger the playbook appends to |
 
 Because nothing is registered, nothing can fall out of step. Rename a target in the Makefile and it is renamed in the console at the next refresh, and the doctor points at the config entry that still uses the old name.
 
@@ -67,7 +68,7 @@ Everything above the line is plain Python with no toolkit in it, and the three f
 | `presentation/` | `language`, `text`, `ansi`: the words, and the rendering primitives | nothing in this package |
 | `core/` | `catalog`, `config`, `allowlist`, `command`, `search`, `doctor`, `recent`, `repository`, `starter`: reading the repository and deciding what may run | `presentation` |
 | `record/` | `store`, `runner`, `summary`, `dora`, `redact`: running things and keeping what happened | `presentation`, `core` |
-| `insight/` | `metrics`, `health`, `runs`, `relaunch`, `dataset`, `export`: what the record means, which parts of it somebody is asking about, and the shapes another store reads it in | the three above |
+| `insight/` | `metrics`, `health`, `runs`, `relaunch`, `dataset`, `export`, `ledger`: what the record means, which parts of it somebody is asking about, and the shapes another store reads it in | the three above |
 | `desktop/` · `web/` · `terminal/` | One package per front end | all of the above, never each other |
 
 Those directory names are checked rather than decorative. `test_layering.py` reads every module's imports and fails on one that crosses a line, and it starts a fresh interpreter to confirm that importing the engine pulls in neither GTK nor a web framework. That check is what moved the *is GTK installed* probe out of the doctor and into the desktop package: the engine should not be asking a question only a front end can answer.

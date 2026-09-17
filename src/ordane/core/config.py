@@ -110,6 +110,9 @@ class Config:
     # ansible.cfg of its own. Applied as environment variables, which
     # compose with any config file rather than replacing it.
     ansible: settings_module.Settings = field(default_factory=settings_module.Settings)
+    # Deploy ledgers to read, as paths or globs. Empty means read the
+    # `audit.path` each inventory declares.
+    ledgers: list[str] = field(default_factory=list)
 
     @property
     def metric_environments(self) -> list[str]:
@@ -205,6 +208,17 @@ def _settings(raw: Any) -> settings_module.Settings:
         raise ConfigError(str(exc)) from exc
 
 
+def _ledgers(raw: Any) -> list[str]:
+    """One path, or a list of paths and globs."""
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [raw]
+    if not isinstance(raw, list):
+        raise ConfigError("`ledgers` must be a path or a list of paths")
+    return [str(item) for item in raw if str(item).strip()]
+
+
 def config_path(repo: Path) -> Path | None:
     """The config this repository carries, under either name, or nothing.
 
@@ -265,6 +279,7 @@ def load(repo: Path) -> Config:
         hidden=[str(h) for h in raw.get("hidden", []) or []],
         playbook_globs=[str(g) for g in raw.get("playbooks", []) or []] or DEFAULT_PLAYBOOK_GLOBS,
         playbooks_declared=bool(raw.get("playbooks")),
+        ledgers=_ledgers(raw.get("ledgers")),
         metrics=dict(raw.get("metrics") or {}),
         slos=list(raw.get("slos") or []),
         environment_var=str(raw.get("environment_var", "environment")),

@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from ..core import catalog as catalog_module
 from ..core import command
 from ..core import config as config_module
+from ..insight import ledger as ledger_module
 from ..insight import metrics
 from ..presentation import ansi, language, text
 from ..record.runner import Runner, RunnerError
@@ -30,6 +31,8 @@ class Settings:
     state_dir: Path
     history_path: Path
     events_path: Path
+    # Ledgers named on the command line, which replace the configured ones.
+    ledgers: tuple[Path, ...] = ()
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -45,11 +48,16 @@ def create_app(settings: Settings) -> FastAPI:
     templates.env.globals["measure_name"] = language.measure_name
     templates.env.globals["state_name"] = language.state_name
     templates.env.globals["config_name"] = config_module.CONFIG_NAME
+    templates.env.globals["chain_state"] = language.chain_state
+    templates.env.globals["ledger_outcome"] = language.ledger_outcome
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
     store = RunStore(settings.state_dir)
     store.prepare()
     runner = Runner(store, settings.repo, settings.events_path)
+
+    def _books(cfg):
+        return ledger_module.gather(settings.repo, cfg.ledgers, list(settings.ledgers))
 
     def load_catalog():
         cfg = config_module.load(settings.repo)
@@ -216,6 +224,28 @@ def create_app(settings: Settings) -> FastAPI:
         except (command.ValidationError, RunnerError) as exc:
             return page(request, "playbooks.html", catalog=cat, config=cfg, error=str(exc))
         return RedirectResponse(f"/runs/{active.id}", status_code=303)
+
+    @app.get("/ledger", response_class=HTMLResponse)
+    def ledger(request: Request):
+        _, cfg = load_catalog()
+        return page(request, "ledger.html", config=cfg, books=_books(cfg))
+
+    @app.get("/ledger/{release}", response_class=HTMLResponse)
+    def deploy(request: Request, release: str):
+        _, cfg = load_catalog()
+        found = ledger_module.find(_books(cfg), release)
+        if found is None:
+            return page(request, "error.html", config=cfg, message=f"no deploy of {release!r}")
+        book, deployment = found
+        return page(
+            request,
+            "deploy.html",
+            config=cfg,
+            book=book,
+            deployment=deployment,
+            steps=ledger_module.steps(deployment),
+            answers=ledger_module.answers(deployment, book.chain),
+        )
 
     @app.get("/runs", response_class=HTMLResponse)
     def history(request: Request):

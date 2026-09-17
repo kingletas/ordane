@@ -18,12 +18,13 @@ from .core import doctor as doctor_module
 from .core import driver, identity, plane, recent, repository, source, starter, validation
 from .core import inventory as inventory_module
 from .core import runbook as runbook_module
-from .insight import export, metrics, relaunch, sources
+from .insight import export, ledger, metrics, relaunch, sources
 from .presentation.text import sentence
 from .record import checks, decisions
 from .record.runner import Runner, RunnerError
 from .record.store import RunStore
 from .terminal import console as terminal
+from .terminal import ledger as ledger_view
 
 DEFAULT_PORT = 8710
 DEFAULT_STATE = Path.home() / ".local" / "state" / "ordane"
@@ -50,6 +51,8 @@ everything the console shows is also here:
   ordane use BRANCH --repo PATH     check out a ref, and say what it changed
   ordane checks  --repo PATH        run the control plane's own checks in a container
   ordane show last --repo PATH      one run: its result, its failures, its output
+  ordane ledger  --repo PATH        every deploy in the ledger, and whether its chain holds
+  ordane ledger last --repo PATH    one deploy: who, what, when, and the flow behind it
 
 launching:
   ordane run ping --repo PATH -e docker
@@ -86,6 +89,17 @@ def _common(parser: argparse.ArgumentParser, *, state: bool = False) -> None:
         parser.add_argument("--history", default=DEFAULT_HISTORY, help="release CSV, repo-relative")
 
 
+def _ledger_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--ledger",
+        type=Path,
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="a deploy ledger to read instead of the ones configured; repeatable",
+    )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ordane",
@@ -110,15 +124,18 @@ def _parser() -> argparse.ArgumentParser:
     _common(app, state=True)
     app.add_argument(
         "--page",
-        choices=("overview", "actions", "runs", "environments", "estate", "delivery"),
+        choices=("overview", "actions", "runs", "environments", "estate", "delivery", "ledger"),
         default="overview",
         help="the view to open on",
     )
+
+    _ledger_flag(app)
 
     serve = sub.add_parser("serve", help="run the web console instead")
     _common(serve, state=True)
     serve.add_argument("--port", type=int, default=DEFAULT_PORT)
     serve.add_argument("--open", action="store_true", help="open a browser window")
+    _ledger_flag(serve)
 
     status = sub.add_parser("status", help="print the dashboard here")
     _common(status, state=True)
@@ -152,6 +169,12 @@ def _parser() -> argparse.ArgumentParser:
         help="limit it to the hosts that failed, where the run allows one",
     )
     again.add_argument("--yes", "-y", action="store_true", help="skip the confirmation")
+
+    book = sub.add_parser("ledger", help="read the deploy ledger and check its chain")
+    _common(book)
+    _ledger_flag(book)
+    book.add_argument("release", nargs="?", default="", help="a release id, or `last`")
+    book.add_argument("-n", "--limit", type=int, default=10, help="deploys per ledger")
 
     catalog = sub.add_parser("catalog", help="print the parsed catalogue, and exit")
     _common(catalog)
@@ -538,8 +561,26 @@ def _app(args, repo: Path) -> int:
             events_path=args.events.expanduser(),
             history=args.history,
             page=getattr(args, "page", "overview"),
+            ledgers=tuple(p.expanduser() for p in getattr(args, "ledger", []) or []),
         )
     )
+
+
+def _ledger(args, repo: Path) -> int:
+    """Every ledger, or one deploy in full. Exits 2 when a chain is broken."""
+    try:
+        declared = config_module.load(repo).ledgers
+    except config_module.ConfigError as exc:
+        sys.exit(f"ordane: {exc}")
+    books = ledger.gather(repo, declared, args.ledger)
+    if args.release:
+        found = ledger.find(books, args.release)
+        if found is None:
+            sys.exit(f"ordane: no deploy of {args.release!r} in any ledger")
+        ledger_view.deployment(*found)
+        return 2 if not found[0].chain.intact and found[0].chain.entries else 0
+    ledger_view.books(books, args.limit)
+    return 2 if any(b.chain.state == ledger.BROKEN for b in books) else 0
 
 
 def _serve(args, repo: Path, cat, cfg) -> int:
@@ -563,6 +604,7 @@ def _serve(args, repo: Path, cat, cfg) -> int:
         state_dir=args.state_dir.expanduser(),
         history_path=repo / args.history,
         events_path=args.events.expanduser(),
+        ledgers=tuple(one.expanduser() for one in args.ledger),
     )
     launchable = ", ".join(e.name for e in cat.launchable_environments) or "none (read-only)"
     print(BANNER.format(repo=repo, port=args.port, envs=launchable))
@@ -623,6 +665,11 @@ def main(argv: list[str] | None = None) -> int:
         return _refs(args, repo)
     if args.cmd == "use":
         return _use(args, repo, state_dir)
+
+    # The ledger is read from files alone, so a catalogue that will not parse
+    # does not hide who deployed what.
+    if args.cmd == "ledger":
+        return _ledger(args, repo)
 
     cat, cfg = _catalog(repo)
 

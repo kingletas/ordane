@@ -35,6 +35,7 @@ from ..insight import (
 )
 from ..insight import environments as env_module  # noqa: E402
 from ..insight import health as health_module  # noqa: E402
+from ..insight import ledger as ledger_module  # noqa: E402
 from ..insight import relaunch as relaunch_module  # noqa: E402
 from ..insight import runs as runs_module  # noqa: E402
 from ..insight import setup as setup_module  # noqa: E402
@@ -61,6 +62,7 @@ from .environmentspage import EnvironmentsPage  # noqa: E402
 from .estate import Estate  # noqa: E402
 from .glyphs import Glyph  # noqa: E402
 from .launch import LaunchDialog  # noqa: E402
+from .ledgerpage import LedgerPage  # noqa: E402
 from .objectives import ObjectivesDialog, saved_message  # noqa: E402
 from .overview import Overview  # noqa: E402
 from .palette import Entry, PaletteDialog  # noqa: E402
@@ -98,12 +100,13 @@ RUNS = "runs"
 ENVIRONMENTS = "environments"
 ESTATE = "estate"
 DELIVERY = "delivery"
+LEDGER = "ledger"
 SETUP = "setup"
 ABOUT = "about"
 PREFERENCES = "preferences"
 
 # The places in the rail, and the three screens that are reached from them.
-PLACES = (OVERVIEW, ACTIONS, RUNS, ENVIRONMENTS, ESTATE, DELIVERY)
+PLACES = (OVERVIEW, ACTIONS, RUNS, ENVIRONMENTS, ESTATE, DELIVERY, LEDGER)
 PAGES = (*PLACES, SETUP, ABOUT, PREFERENCES)
 
 TITLES = {
@@ -113,6 +116,7 @@ TITLES = {
     ENVIRONMENTS: "Environments",
     ESTATE: "Estate",
     DELIVERY: "Delivery",
+    LEDGER: "Ledger",
     SETUP: "Setup",
     ABOUT: "About Ordane",
     PREFERENCES: "Preferences",
@@ -267,6 +271,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
         self._estate = Estate()
         self._estate._on_copied = self._toast
         self._delivery_page = DeliveryPage(on_remedy=self._remedy, on_go=self._go)
+        self._ledger_page = LedgerPage(on_configure=lambda: self.activate_action("configure", None))
         self._setup_page = SetupPage(on_remedy=self._remedy)
         self._about_page = aboutpage.AboutPage(
             on_copy=self._copy_details,
@@ -291,6 +296,7 @@ class ConsoleWindow(Adw.ApplicationWindow):
         self._stack.add_named(self._environments_page, ENVIRONMENTS)
         self._stack.add_named(self._estate, ESTATE)
         self._stack.add_named(self._delivery_page, DELIVERY)
+        self._stack.add_named(_well(self._ledger_page), LEDGER)
         self._stack.add_named(self._setup_page, SETUP)
         self._stack.add_named(self._about_page, ABOUT)
         self._stack.add_named(self._prefs_page, PREFERENCES)
@@ -1131,6 +1137,11 @@ class ConsoleWindow(Adw.ApplicationWindow):
         self._delivery_page.render(
             self._snapshot, scope=", ".join(self._config.metric_environments)
         )
+        self._ledger_page.render(
+            ledger_module.gather(
+                self._settings.repo, self._config.ledgers, list(self._settings.ledgers)
+            )
+        )
         self._setup_page.render(self._setup)
         self._rail.set_tallies(self._tallies(runs))
         self._show_crumb(self._stack.get_visible_child_name())
@@ -1601,7 +1612,7 @@ def breakpoint_for(window) -> Adw.Breakpoint:
     # setter for an enum property applied nothing here and said nothing about
     # it, so the two split pages stayed side by side in a window too narrow to
     # hold them and the layout asked for more width than it had.
-    stacked = (window._actions_page, window._runs_page)
+    stacked = (window._actions_page, window._runs_page, window._ledger_page)
 
     def lay_out(_point, orientation) -> None:
         for page in stacked:

@@ -2,6 +2,19 @@
 
 Notable changes, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0]: 2026-09-17
+
+A deploy playbook that keeps its own record of what it did now has a place to be read: who deployed, who approved, what went out, and whether that record has been changed since.
+
+### Added
+
+- **A Ledger place, `Ctrl+7`.** A deploy playbook that keeps an append-only, hash-chained record of what it did now has somewhere to be read. Ordane reads that file and never writes to it, so a deploy somebody ran from a terminal appears alongside one launched from here.
+- Each ledger's chain is checked on every read, by the same rules the writer uses: a line that was edited, removed or reordered breaks every hash after it, and the page names the line and the reason. Deploys recorded after a break are marked untrusted rather than hidden or dropped.
+- A deploy opens on who stands behind it — who requested it, who approved it, which host built it, who verified it afterwards — then the flow step by step, then ten answers read from the records alone: what went out, whether it is what was approved and built, when, whether the site went into maintenance, whether a backup was taken or failed, how it ended, and whether the records can be trusted. A name is printed on a step only where it says something, so the step somebody else took stands out instead of being lost in a column of the same address.
+- `ordane ledger` prints every deploy and exits 2 when a chain is broken, so it can run from a scheduled job. `ordane ledger last`, or a release id, prints one deploy in full. The browser console has the same two pages.
+- `ledgers:` in `.ordane.yml` names the files. Without it Ordane reads the `audit.path` each inventory's `group_vars` already declares, so a playbook that keeps a ledger needs no configuration at all. A path built from a variable this console cannot resolve is listed as one it could not resolve, rather than guessed at.
+- `make demo` seeds two ledgers with invented deploys, including one stopped by a failed backup and one nobody has finished.
+
 ## [0.2.0]: 2026-09-08
 
 The whole interface has been rebuilt to a design direction called *Bridge* — a ship's bridge, where the state is visible at a glance and the controls are within reach of the person reading the instruments. Everything in it follows from one job: know whether it is safe to act, act, then see what happened.

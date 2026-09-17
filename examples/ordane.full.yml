@@ -183,6 +183,13 @@ validation:
 notifications:
   task: Report which notifications landed
 
+# The deploy ledgers to read: the hash-chained audit logs a deploy playbook
+# appends to, one per environment. Paths or globs, relative to the repository
+# unless they start with `/` or `~`. Leave it out and the console reads the
+# `audit.path` each inventory's group_vars declares.
+ledgers:
+  - ~/.local/state/control-plane/*.audit.jsonl
+
 # What counts as a release for the delivery measures. Leave it out and only
 # `production` counts. A release to a throwaway fleet should never move a
 # number that is supposed to mean something.

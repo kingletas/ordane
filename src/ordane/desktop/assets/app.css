@@ -786,3 +786,13 @@ levelbar block.filled { background: @ready; }
 /* The step marks: a ring, a number or a tick, and the three states of one. */
 .mark.step-open { color: @ink-3; }
 .mark.done { color: @on-ready; }
+
+/* The deploy ledger: an answer cell, and the flow down the page. */
+.answer { padding: 12px 15px; border-bottom: 1px solid @line-soft; border-right: 1px solid @line-soft; }
+.flow-row { padding: 10px 15px 0; }
+.flow-row.last { padding-bottom: 10px; }
+.flow-dot { min-width: 9px; min-height: 9px; border-radius: 999px; margin-top: 4px; background: @ready; }
+.flow-dot.attention { background: @degraded; }
+.flow-dot.problem { background: @failed; }
+.flow-dot.unknown { background: @ink-3; }
+.flow-stem { min-width: 1px; min-height: 18px; margin-top: 3px; background: @line-soft; }

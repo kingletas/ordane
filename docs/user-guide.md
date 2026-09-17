@@ -12,6 +12,7 @@ Everything described here is also available in the terminal and in a browser, ov
 - [Runs](#runs)
 - [Environments](#environments)
 - [Delivery](#delivery)
+- [Ledger](#ledger)
 - [Setup](#setup)
 - [The command palette](#the-command-palette)
 - [What a run told the outside world](#what-a-run-told-the-outside-world)
@@ -38,7 +39,7 @@ You can select and copy values in a run: the command, the exit code, and whateve
 
 `Ctrl+B` shows and hides the rail, and a window narrower than 1000 px folds it away for you.
 
-## The six places
+## The seven places
 
 | Place | What it answers |
 |---|---|
@@ -48,6 +49,7 @@ You can select and copy values in a run: the command, the exit code, and whateve
 | **Environments** | What can be reached, and what is the one that cannot waiting on? |
 | **Estate** | What the shared stores know that this machine does not |
 | **Delivery** | How often we ship, how long it takes, and what we are holding ourselves to |
+| **Ledger** | Who deployed what, who approved it, and whether the record of it has been changed |
 
 Three more screens are reached from those rather than listed beside them, because each stops being interesting once you are past it: **Setup**, **About** and **Preferences**.
 
@@ -241,6 +243,41 @@ Below them the service objectives, each with a gauge that carries its own target
 
 At the foot is what these numbers do not cover, in the copy rather than in fine print. A restore is the deploy that followed a failed one; nothing here reads an incident tracker.
 
+## Ledger
+
+The Ledger reads the deploy playbook's own record of what it did: an append-only file with one line per step of every deploy. Ordane does not write to it. The playbook does, whether the deploy was launched from here or typed into a terminal, so this is the one place that shows deploys this console never saw.
+
+Each line carries a SHA-256 hash of the line before it. Change a line, delete one or swap two, and every hash after that point stops matching. Ordane checks the whole chain every time it reads the file, using the same rules as the tool that wrote it, and a pill beside each ledger says **Chain intact** or **Chain broken**. A broken chain names the line and the reason, and every deploy recorded from that line on is marked as untrusted rather than hidden.
+
+> [!NOTE]
+> The chain shows that a ledger was changed. It cannot stop someone with write access from replacing the whole file. That is what the playbook's `audit.forward` setting is for: it sends every line somewhere the file's owner cannot rewrite.
+
+The list on the left is each ledger and its deploys, newest first. Choose one and the right-hand side answers, from its records alone:
+
+- **Who** requested it, who approved it, which host built it, and who verified it afterwards. A step recorded by someone other than the person who started the deploy is highlighted.
+- **What** went out: the commit, the branch, the release, and the archive's checksum.
+- **Whether it is what was approved and built.** The approved commit is compared with the built one, and the checksum at cutover with the checksum at build. A mismatch is shown in red.
+- **When** it started and how long it took.
+- **Whether the site went into maintenance**, and whether a backup was taken or failed.
+- **Whether it worked**, and how the cache warm-up went.
+- **Whether these records can be trusted.**
+
+Under the answers is the flow itself: one line per step, with its time, its detail and the person or host behind it. Anything you might want to paste, like a commit, a checksum, a signing key or a backup id, is listed at the foot with a copy button.
+
+A deploy with no finish recorded says so, and names the last step it reached. The ledger alone cannot tell you whether that deploy stopped or is still running.
+
+Ordane finds the ledgers in the inventory, from the `audit.path` each environment's `group_vars` declares. To point it somewhere else, see [`ledgers`](configuration.md#ledgers). To read one without opening the window:
+
+```bash
+ordane ledger --repo ~/control-plane
+```
+
+```bash
+ordane ledger last --repo ~/control-plane
+```
+
+The first lists every deploy and exits with status 2 if any chain is broken, so it can run from a scheduled job. The second prints one deploy in full. Pass a release id instead of `last` to choose which.
+
 ## Setup
 
 Seven steps, in the order that makes each one possible, reached from the card on Overview. Each one turns a specific thing on and says which, so you can stop after any of them and the console still works. It stops existing at seven of seven.
@@ -277,6 +314,7 @@ Every run is written to `~/.local/state/ordane/runs.jsonl`, with the output besi
 | `Ctrl+4` | Go to Environments |
 | `Ctrl+5` | Go to the Estate |
 | `Ctrl+6` | Go to Delivery |
+| `Ctrl+7` | Go to the Ledger |
 | `Alt+Left` | Back to the place before this one |
 | `Alt+Right` | Forward again |
 | `Ctrl+K` | Search or run a command |

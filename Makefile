@@ -45,7 +45,9 @@ venv: ## Build the virtualenv with the system GTK bindings visible
 demo: seed ## Open the console against the example control plane, which reaches nothing
 	@uv run ordane app --repo examples/control-plane \
 		--state-dir $(DEMO_STATE) \
-		--events $(DEMO_STATE)/deployments.jsonl
+		--events $(DEMO_STATE)/deployments.jsonl \
+		--ledger $(DEMO_STATE)/ledgers/staging.audit.jsonl \
+		--ledger $(DEMO_STATE)/ledgers/docker.audit.jsonl
 
 # Its own state directory, rebuilt each time: the demo must never write into
 # the history of a control plane somebody actually drives.

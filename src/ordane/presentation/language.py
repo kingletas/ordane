@@ -146,3 +146,73 @@ RUN_KINDS = {
 
 def run_kind(kind: str) -> str:
     return RUN_KINDS.get(kind, kind or "a run")
+
+
+# The steps a deploy ledger records, in the order a deploy walks through them.
+LEDGER_STEPS = {
+    "deploy.started": Word("Deploy requested", "Somebody started the deploy playbook."),
+    "approval.verified": Word(
+        "Approval checked",
+        "The commit carries a signed approval from someone other than the deployer.",
+    ),
+    "build.succeeded": Word("Built", "The release was built and its archive checksummed."),
+    "cutover.started": Word("Cutover began", "The web hosts started switching to the new release."),
+    "backup.succeeded": Word("Backed up", "The database was backed up before anything changed."),
+    "backup.failed": Word(
+        "Backup failed",
+        "The backup did not complete, so the deploy stopped with the old release live.",
+    ),
+    "maintenance.enabled": Word(
+        "Maintenance on", "The site showed its maintenance page while the database changed."
+    ),
+    "cutover.succeeded": Word("Went live", "The new release is the one serving the site."),
+    "warmup.completed": Word(
+        "Caches warmed", "The storefront pages were requested to fill the caches."
+    ),
+    "deploy.finished": Word("Finished", "The deploy playbook reached its end."),
+    "deploy.verified": Word(
+        "Verified", "The checks after a deploy ran against the live release and passed."
+    ),
+}
+
+LEDGER_OUTCOMES = {
+    "succeeded": Word("Live", "The deploy finished and the release went live."),
+    "built-only": Word(
+        "Built, not live", "The deploy finished without making the release live, as asked."
+    ),
+    "stopped": Word(
+        "Stopped",
+        "The deploy stopped itself before the release went live, so the old one kept serving.",
+    ),
+    "unfinished": Word("No finish recorded", "The ledger has no finish for this deploy."),
+}
+
+CHAIN_STATES = {
+    "intact": Word(
+        "Chain intact",
+        "Every record links to the one before it, so none was edited, removed or reordered.",
+    ),
+    "broken": Word(
+        "Chain broken",
+        "A record does not link to the one before it. Nothing from that line on can be trusted.",
+    ),
+    "empty": Word("No deploys yet", "The ledger exists and holds no records."),
+    "missing": Word("No ledger here", "Nothing has been written to this path yet."),
+    "unreadable": Word("Cannot be read", "The file is there but could not be read."),
+}
+
+
+def ledger_step(event: str) -> str:
+    return LEDGER_STEPS[event].name if event in LEDGER_STEPS else event
+
+
+def ledger_step_meaning(event: str) -> str:
+    return LEDGER_STEPS[event].meaning if event in LEDGER_STEPS else ""
+
+
+def ledger_outcome(outcome: str) -> Word:
+    return LEDGER_OUTCOMES.get(outcome, Word(outcome, ""))
+
+
+def chain_state(state: str) -> Word:
+    return CHAIN_STATES.get(state, Word(state, ""))

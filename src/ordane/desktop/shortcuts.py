@@ -40,6 +40,7 @@ KEYS = (
     Key("<Control>4", "win.page::environments", "Go to Environments", "Move around"),
     Key("<Control>5", "win.page::estate", "Go to the Estate", "Move around"),
     Key("<Control>6", "win.page::delivery", "Go to Delivery", "Move around"),
+    Key("<Control>7", "win.page::ledger", "Go to the Ledger", "Move around"),
     Key("<Alt>Left", "win.go-back", "Back to the place before this one", "Move around"),
     Key("<Alt>Right", "win.go-forward", "Forward again", "Move around"),
     Key("<Control>k", "win.palette", "Search or run a command", "Do something"),

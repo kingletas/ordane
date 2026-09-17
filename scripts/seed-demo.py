@@ -22,6 +22,8 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import demo_ledger
+
 from ordane.core import config as config_module
 from ordane.core import inventory as inventory_module
 from ordane.record import dora
@@ -315,6 +317,8 @@ def main() -> int:
     events, count = seed(state_dir, repo)
     print(f"seeded {count} runs into {state_dir}")
     print(f"deployment events in {events}")
+    for ledger in demo_ledger.write(state_dir / "ledgers"):
+        print(f"deploy ledger in {ledger}")
     return 0
 
 

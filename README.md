@@ -53,6 +53,8 @@ A control plane like this has no memory. Somebody runs `make deploy`, the output
 
 Ordane keeps that record: every run, the exact command, what Ansible reported, and how long it took. The delivery measures on the Delivery view are computed from it and from your release history. Where a measure has no source it says so instead of showing zero, because a backfilled figure makes an absence look like a measurement.
 
+Where your deploy playbook keeps its own record of what it did — an append-only file, one line per step, each line carrying a hash of the line before it — the Ledger view reads that too, and answers the questions somebody asks afterwards: who deployed this, who approved it, what commit went out, was there a backup, did the site go into maintenance, and has anything in the record been changed since. Ordane never writes to that file, so a deploy somebody ran from a terminal shows up there as well as one launched from here.
+
 The other reason is that `make` is a risky interface for something that reaches production. A mistyped variable becomes a shell command on a remote host, and a target name one letter out is a different outage. So parameters are allow-listed instead of escaped, the exact command is shown before anything runs, and nothing can be launched at all until you have named the environments this console is allowed to reach.
 
 ## Documentation
@@ -107,6 +109,7 @@ The files on disk are the source of truth. The console keeps no registry of its 
 | The choice lists | `patches/*.patch`, the inventory, the release directory |
 | Release history | `docs/dora/history.csv` |
 | Deployment events | the DORA event log |
+| Who deployed what, and who approved it | the deploy ledger the playbook appends to |
 
 Write a `## target: description` line above a recipe and it appears in the console. There is nothing to register and nothing to keep in step.
 
@@ -172,4 +175,4 @@ Python 3.12 or later and `uv`, plus either `make` or `ansible-playbook` dependin
 - **Editing environments themselves.** The console reads them and writes down which are allowed. It does not write your profile or inventory files, apart from the EC2 one it can build for you.
 - **Availability and latency.** Both need a probe, and a probe that runs on a laptop is measuring the laptop.
 - **Live host state.** What is deployed right now is read from the event log, not by asking the hosts.
-- **Runs that did not come from here.** Anything launched by hand in a terminal is not recorded. That is the gap this tool exists to shrink, and it has not closed it.
+- **Runs that did not come from here.** Anything launched by hand in a terminal is missing from the run history. Where your deploy playbook keeps a ledger of its own, the Ledger view reads it and those deploys do appear, with who ran them — but a deploy is not every run, and the gap is still there.

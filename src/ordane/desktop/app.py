@@ -38,6 +38,8 @@ class Settings:
     events_path: Path
     history: str = "docs/dora/history.csv"
     page: str = "overview"
+    # Ledgers named on the command line, which replace the configured ones.
+    ledgers: tuple[Path, ...] = ()
 
     @property
     def history_path(self) -> Path:

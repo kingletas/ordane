@@ -46,6 +46,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
+import demo_ledger  # noqa: E402, beside this script
 from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402, after the versions above
 
 from ordane.core import edit, identity, search, validation  # noqa: E402
@@ -989,6 +990,34 @@ def drive(app, repo: Path, shots: Path) -> None:
     )
     snapshot(window, shots / "30-delivery.png")
 
+    window.activate_action("win.page", GLib.Variant.new_string("ledger"))
+    pump(0.8)
+    check("the Ledger checks each chain", has_text(page(window), "Chain intact"))
+    check("and opens the newest deploy on who ran it", has_text(page(window), "requested it"))
+    check("and who approved it", has_text(page(window), "Who approved it?"))
+    check("with the flow under the answers", has_text(page(window), "Caches warmed"))
+    snapshot(window, shots / "30b-ledger.png")
+
+    # A deploy somebody else approved and somebody else verified: the case the
+    # page exists for, and the only one where a second name appears.
+    rows = [
+        one
+        for one in rows_under(page(window), Gtk.Button)
+        if one.has_css_class("runitem") and has_text(one, "sam@example.com")
+    ]
+    check("a deploy approved by somebody else is in the list", bool(rows))
+    if rows:
+        rows[0].emit("clicked")
+        pump(0.6)
+        check("opening it names the approver", has_text(page(window), "approved by"))
+        check(
+            "and whoever verified it afterwards", has_text(page(window), "verified it afterwards")
+        )
+        check(
+            "and says whether it is what was approved", has_text(page(window), "approved and built")
+        )
+        snapshot(window, shots / "30c-ledger-deploy.png")
+
     window.activate_action("win.page", GLib.Variant.new_string("setup"))
     pump(0.6)
     check("Setup is seven steps", len(window._setup.steps) == 7)
@@ -1698,7 +1727,12 @@ def main() -> int:
     shutil.copytree(source, repo)
     state = workspace / "state"
 
-    settings = Settings(repo=repo, state_dir=state, events_path=state / "deployments.jsonl")
+    settings = Settings(
+        repo=repo,
+        state_dir=state,
+        events_path=state / "deployments.jsonl",
+        ledgers=tuple(demo_ledger.write(state / "ledgers")),
+    )
     app = ConsoleApplication(settings)
 
     def run(application) -> bool:
