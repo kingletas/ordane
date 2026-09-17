@@ -139,6 +139,9 @@ class LedgerPage(Gtk.Box):
             )
         if book.source.note:
             head.append(w.label(book.source.note, "runitem-meta", "tint-warn", wrap=True))
+        headline = next((t for t in book.timings if t.key == ledger.HEADLINE), None)
+        if headline is not None and headline.measured:
+            head.append(w.label(_headline(headline), "runitem-meta", wrap=True))
         card.append(head)
 
         if not book.deployments:
@@ -260,6 +263,9 @@ class LedgerPage(Gtk.Box):
                 )
             )
         self._detail.append(_people(deployment))
+        spans = _spans(deployment)
+        if spans is not None:
+            self._detail.append(spans)
 
         self._detail.append(
             w.band("How it went", f"{plural(len(deployment.entries), 'record')}, in order")
@@ -269,6 +275,11 @@ class LedgerPage(Gtk.Box):
         answers = ledger.answers(deployment, book.chain)
         self._detail.append(w.band("What the records say", "every answer is read from the ledger"))
         self._detail.append(_answers(answers))
+
+        self._detail.append(
+            w.band("How long deploys take here", f"measured from {book.environment}'s own records")
+        )
+        self._detail.append(_timings(book.timings))
 
         exact = [value for answer in answers for value in answer.exact]
         if exact:
@@ -321,6 +332,80 @@ def _people(deployment: ledger.Deployment) -> Gtk.Widget:
         cell.append(w.label(caption, "fact-label"))
         grid.attach(cell, index % 2, index // 2, 1, 1)
     return grid
+
+
+def _headline(timing: ledger.Timing) -> str:
+    """The span customers feel, said as a typical figure with its range."""
+    if timing.samples == 1:
+        return f"{timing.name} {ledger.spoken(timing.typical)}, from one deploy"
+    over = f"over {plural(timing.samples, 'deploy')}"
+    if timing.fastest == timing.slowest:
+        return f"{timing.name} {ledger.spoken(timing.typical)} every time, {over}"
+    return (
+        f"{timing.name} typically {ledger.spoken(timing.typical)}"
+        f" ({ledger.spoken(timing.fastest)} to {ledger.spoken(timing.slowest)}, {over})"
+    )
+
+
+def _spans(deployment: ledger.Deployment) -> Gtk.Widget | None:
+    """This deploy's own timings, the one customers feel first."""
+    spans = deployment.spans
+    order = [ledger.HEADLINE, "cutover", "build", "total", "warmup", "to_verify"]
+    measured = [(key, spans[key]) for key in order if key in spans]
+    if not measured:
+        return None
+    strip = w.row(0)
+    strip.add_css_class("card")
+    for index, (key, seconds) in enumerate(measured):
+        if index:
+            strip.append(w.divider(vertical=True))
+        cell = w.box(spacing=2, hexpand=True)
+        cell.set_margin_top(12)
+        cell.set_margin_bottom(12)
+        cell.set_margin_start(14)
+        cell.set_margin_end(14)
+        figure = w.label(ledger.spoken(seconds), "fact-value", "num")
+        if key == ledger.HEADLINE:
+            figure.add_css_class("tint-warn")
+        cell.append(figure)
+        name = w.label(language.span_name(key), "fact-label")
+        name.set_tooltip_text(language.span_meaning(key))
+        cell.append(name)
+        strip.append(cell)
+    return strip
+
+
+def _timings(timings: list[ledger.Timing]) -> Gtk.Widget:
+    """What this ledger's deploys usually cost, and what it cannot time."""
+    card = w.card()
+    for index, timing in enumerate(timings):
+        line = w.row(12)
+        line.add_css_class("obj-row")
+        if index == len(timings) - 1:
+            line.add_css_class("last")
+        text = w.box(spacing=2, hexpand=True)
+        name = w.label(timing.name, "obj-name")
+        name.set_tooltip_text(timing.meaning)
+        text.append(name)
+        if timing.measured:
+            over = f"over {plural(timing.samples, 'deploy')}"
+            spread = (
+                over
+                if timing.fastest == timing.slowest
+                else f"{ledger.spoken(timing.fastest)} to {ledger.spoken(timing.slowest)}, {over}"
+            )
+            text.append(w.label(spread, "obj-scope"))
+        else:
+            text.append(w.label(timing.blocked, "obj-scope", wrap=True))
+        line.append(text)
+        figure = w.label(
+            ledger.spoken(timing.typical) if timing.measured else "not measured",
+            "obj-name" if timing.measured else "actrow-note",
+        )
+        figure.set_valign(Gtk.Align.CENTER)
+        line.append(figure)
+        card.append(line)
+    return card
 
 
 def _answers(answers: list[ledger.Answer]) -> Gtk.Widget:

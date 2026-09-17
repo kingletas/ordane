@@ -216,3 +216,30 @@ def ledger_outcome(outcome: str) -> Word:
 
 def chain_state(state: str) -> Word:
     return CHAIN_STATES.get(state, Word(state, ""))
+
+
+# The spans a ledger can be asked for, each measured between two records it
+# already carries. Nothing here times a phase with only one record.
+SPANS = {
+    "maintenance": Word(
+        "Maintenance window",
+        "How long the site showed its maintenance page: the only span customers experience.",
+    ),
+    "cutover": Word(
+        "Cutover", "From the cutover starting to the new release being the one that serves."
+    ),
+    "build": Word("Build", "From the deploy being asked for to the archive being built."),
+    "total": Word("Whole deploy", "From the request to the playbook finishing."),
+    "warmup": Word("Warm-up", "From the release going live to the storefront caches being filled."),
+    "to_verify": Word(
+        "Wait to verify", "From the deploy finishing to the checks after it passing."
+    ),
+}
+
+
+def span_name(key: str) -> str:
+    return SPANS[key].name if key in SPANS else key
+
+
+def span_meaning(key: str) -> str:
+    return SPANS[key].meaning if key in SPANS else ""

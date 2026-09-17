@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -408,3 +409,128 @@ def test_the_command_reads_one_deploy_in_full(plane, capsys):
     for question in ("Who deployed it?", "Who approved it?", "Can these records be trusted?"):
         assert question in printed
     assert "sam@example.com" in printed
+
+
+# --- how long it took ---
+
+
+BASE = datetime(2026, 9, 1, 10, 0, tzinfo=UTC)
+
+
+def at(minute: int) -> str:
+    """Minutes from a fixed moment, so a test may run past the end of an hour."""
+    return (BASE + timedelta(minutes=minute)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def a_timed_deploy(release: str = "r1", start: int = 0, cutover: int = 10, live: int = 20):
+    """One deploy whose records are minutes apart, so a span is a real figure."""
+    records = a_full_deploy(release)
+    minutes = {
+        "deploy.started": start,
+        "approval.verified": start + 1,
+        "build.succeeded": start + 5,
+        "cutover.started": cutover,
+        "cutover.succeeded": live,
+        "deploy.finished": live + 2,
+    }
+    for record in records:
+        record["recorded_at"] = at(minutes[record["event"]])
+        if record["event"] in ("cutover.started", "cutover.succeeded"):
+            record["maintenance_window"] = True
+    records.insert(4, event("maintenance.enabled", release))
+    records[4]["recorded_at"] = at(cutover + 2)
+    return records
+
+
+def test_a_span_is_the_gap_between_the_two_records_that_bound_it(tmp_path):
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", a_timed_deploy()))
+    [deployment] = ledger.deployments(chain)
+
+    assert deployment.span("maintenance") == 8 * 60
+    assert deployment.span("cutover") == 10 * 60
+    assert deployment.span("build") == 5 * 60
+    assert deployment.span("total") == 22 * 60
+
+
+def test_a_span_with_a_record_missing_at_either_end_is_not_measured(tmp_path):
+    records = [r for r in a_timed_deploy() if r["event"] != "deploy.finished"]
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+    [deployment] = ledger.deployments(chain)
+
+    assert deployment.span("total") is None
+    assert "total" not in deployment.spans
+    assert deployment.span("maintenance") == 8 * 60
+
+
+def test_a_span_measured_as_zero_is_not_the_same_as_one_not_measured():
+    """Zero seconds is a fast step; nothing at all is a step nobody can time."""
+    assert ledger.spoken(0.0) == "under a second"
+    assert ledger.spoken(None) == ""
+    assert ledger.spoken(95) == "1m 35s"
+
+
+def test_the_maintenance_answer_carries_how_long_the_page_was_up(tmp_path):
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", a_timed_deploy()))
+    [deployment] = ledger.deployments(chain)
+    said = answer(deployment, chain, "Did the site go into maintenance?")
+
+    assert said.answer == "Yes, for 8m 00s"
+    assert "8m 00s" in said.detail
+
+
+def test_a_ledger_reports_the_typical_span_and_its_spread(tmp_path):
+    records = (
+        a_timed_deploy("r1", start=0, cutover=10, live=20)
+        + a_timed_deploy("r2", start=30, cutover=40, live=44)
+        + a_timed_deploy("r3", start=60, cutover=70, live=82)
+    )
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+    found = {t.key: t for t in ledger.timings(ledger.deployments(chain))}
+
+    window = found["maintenance"]
+    assert window.samples == 3
+    # 8, 2 and 10 minutes: the middle one, not the mean.
+    assert (window.typical, window.fastest, window.slowest) == (8 * 60, 2 * 60, 10 * 60)
+    assert window.measured is True
+
+
+def test_an_even_number_of_samples_takes_the_middle_pair(tmp_path):
+    records = a_timed_deploy("r1", start=0, cutover=10, live=20) + a_timed_deploy(
+        "r2", start=30, cutover=40, live=44
+    )
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+    found = {t.key: t for t in ledger.timings(ledger.deployments(chain))}
+    assert found["maintenance"].typical == 5 * 60
+
+
+def test_a_span_nothing_has_reached_says_so_rather_than_reporting_zero(tmp_path):
+    """The quiet direction: a measure with no sample must never read as instant."""
+    records = [r for r in a_full_deploy() if r["event"] != "cutover.succeeded"]
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+    found = {t.key: t for t in ledger.timings(ledger.deployments(chain))}
+
+    window = found["maintenance"]
+    assert window.measured is False
+    assert window.typical == 0.0
+    assert "needed a maintenance window" in window.blocked
+    assert found["to_verify"].blocked == ledger.NOTHING_TIMED["to_verify"]
+    assert found["cutover"].blocked == ledger.NOT_REACHED
+
+
+def test_records_after_a_break_are_left_out_of_the_timings(tmp_path):
+    """A figure is only as good as the records under it, so an edited one counts for nothing."""
+    path = write_chain(
+        tmp_path / "staging.audit.jsonl",
+        a_timed_deploy("r1", start=0, cutover=10, live=20)
+        + a_timed_deploy("r2", start=30, cutover=40, live=44),
+    )
+    records = lines_of(path)
+    was = records[8]["recorded_at"]
+    records[8]["recorded_at"] = at(35)
+    assert records[8]["recorded_at"] != was, "the edit has to change something to be an edit"
+    rewrite(path, records)
+
+    chain = ledger.read(path)
+    found = {t.key: t for t in ledger.timings(ledger.deployments(chain))}
+    assert found["maintenance"].samples == 1
+    assert found["maintenance"].typical == 8 * 60

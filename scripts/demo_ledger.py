@@ -84,13 +84,18 @@ def _deploy(environment, index, days_ago, hour, actor, approver, window, ending,
         clock[0] = clock[0] + timedelta(minutes=minutes)
         return clock[0].strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    # Each deploy takes a little longer or less than the last, so the spread a
+    # reader sees is a spread rather than one figure repeated.
+    def stretch(minutes: float) -> float:
+        return round(minutes * (0.7 + 0.25 * ((index * 3 + days_ago) % 5)), 2)
+
     def record(event: str, minutes: float, who=actor, **detail) -> dict:
         return {
             "event": event,
             "env_name": environment,
             "release": release,
             "actor": who,
-            "recorded_at": at(minutes),
+            "recorded_at": at(stretch(minutes)),
             **detail,
         }
 

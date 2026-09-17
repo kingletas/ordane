@@ -3,6 +3,18 @@
 <h1><code>{{ deployment.release }}</code></h1>
 <p class="muted">{{ book.environment }} — started {{ deployment.started_at | moment }}. <a href="/ledger">Back to the ledger</a></p>
 
+<h2>How long it took</h2>
+<table>
+  <thead><tr><th>Span</th><th>How long</th></tr></thead>
+  <tbody>
+  {% for key, seconds in deployment.spans.items() %}
+    <tr><td title="{{ span_meaning(key) }}">{{ span_name(key) }}</td><td>{{ spoken(seconds) }}</td></tr>
+  {% else %}
+    <tr><td colspan="2" class="muted">Nothing in this deploy has two records to measure between.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
 <h2>How it went</h2>
 <table>
   <thead><tr><th>Step</th><th>When</th><th>What it says</th><th>Who</th></tr></thead>

@@ -1016,6 +1016,14 @@ def drive(app, repo: Path, shots: Path) -> None:
         check(
             "and says whether it is what was approved", has_text(page(window), "approved and built")
         )
+        check(
+            "and how long the maintenance page was up",
+            has_text(page(window), "Maintenance window"),
+        )
+        check(
+            "and what a deploy here usually costs",
+            has_text(page(window), "How long deploys take here"),
+        )
         snapshot(window, shots / "30c-ledger-deploy.png")
 
     window.activate_action("win.page", GLib.Variant.new_string("setup"))

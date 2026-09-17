@@ -20,7 +20,7 @@ from pathlib import Path
 
 import yaml
 
-from ..presentation import language
+from ..presentation import language, text
 from ..presentation.text import moment, took
 
 GENESIS = "0" * 64
@@ -295,6 +295,26 @@ class Deployment:
         steps = [e for e in self.entries if e.event != "deploy.verified"]
         return steps[-1] if steps else self.entries[-1]
 
+    def span(self, key: str) -> float | None:
+        """Seconds between the two records a span is measured over, or None if either is missing."""
+        pair = SPAN_RECORDS.get(key)
+        if pair is None:
+            return None
+        opening, closing = pair
+        first, last = self.first(opening), self.last(closing)
+        if first is None or last is None:
+            return None
+        start, end = _stamp(first.at), _stamp(last.at)
+        if start is None or end is None or end < start:
+            return None
+        return (end - start).total_seconds()
+
+    @property
+    def spans(self) -> dict[str, float]:
+        """Every span this deploy's records can carry, in the order a reader asks for them."""
+        found = {key: self.span(key) for key in SPAN_RECORDS}
+        return {key: value for key, value in found.items() if value is not None}
+
     @property
     def duration_s(self) -> float | None:
         finished = self.finished
@@ -304,6 +324,21 @@ class Deployment:
         if start is None or end is None:
             return None
         return max(0.0, (end - start).total_seconds())
+
+
+# Each span is the gap between two records the ledger already carries. A phase
+# with a record at only one end cannot be timed, and none is invented here.
+SPAN_RECORDS = {
+    "maintenance": ("maintenance.enabled", "cutover.succeeded"),
+    "cutover": ("cutover.started", "cutover.succeeded"),
+    "build": ("deploy.started", "build.succeeded"),
+    "total": ("deploy.started", "deploy.finished"),
+    "warmup": ("cutover.succeeded", "warmup.completed"),
+    "to_verify": ("deploy.finished", "deploy.verified"),
+}
+
+# The one customers experience, so it leads wherever a timing is shown.
+HEADLINE = "maintenance"
 
 
 def record_hash(record: dict) -> str:
@@ -736,24 +771,26 @@ def _when_it_ran(d: Deployment) -> Answer:
             f"Started {started}",
             f"Last step recorded: {language.ledger_step(d.last_step.event).lower()}",
         )
-    took_text = took(d.duration_s)
-    return Answer(
-        "When?",
-        f"Started {started}",
-        f"Took {took_text}" if took_text else "Finished within a second",
-    )
+    parts = [
+        f"{language.span_name(key).lower()} {spoken(d.span(key))}"
+        for key in ("build", "cutover")
+        if d.span(key) is not None
+    ]
+    detail = f"Took {spoken(d.duration_s)}."
+    return Answer("When?", f"Started {started}", f"{detail} {text.sentence(parts).capitalize()}.")
 
 
 def _downtime(d: Deployment) -> Answer:
     question = "Did the site go into maintenance?"
     window = d.maintenance_window
     if window:
-        return Answer(
-            question,
-            "Yes",
-            "The database or configuration needed changing, so the maintenance page showed.",
-            language.ATTENTION,
+        held = spoken(d.span(HEADLINE))
+        shown = (
+            f"The maintenance page showed for {held}, while the database or configuration changed."
+            if held
+            else "The database or configuration needed changing, so the maintenance page showed."
         )
+        return Answer(question, f"Yes, for {held}" if held else "Yes", shown, language.ATTENTION)
     if window is False:
         return Answer(question, "No", "Nothing needed a window, so the site stayed up.")
     if d.maintenance_planned:
@@ -861,6 +898,11 @@ class Book:
     def environment(self) -> str:
         return self.chain.environment or self.source.environment
 
+    @property
+    def timings(self) -> list[Timing]:
+        """How long the deploys in this ledger take, measured from their own records."""
+        return timings(self.deployments)
+
 
 def gather(repo: Path, declared: list[str], given: list[Path] | None = None) -> list[Book]:
     """Every ledger this control plane has, read and grouped, the most recently deployed first."""
@@ -886,3 +928,85 @@ def find(books: list[Book], release: str) -> tuple[Book, Deployment] | None:
     if not candidates:
         return None
     return max(candidates, key=lambda pair: pair[1].started_at)
+
+
+@dataclass(frozen=True)
+class Timing:
+    """How long one span usually takes here, and how much it varies."""
+
+    key: str
+    name: str
+    meaning: str
+    samples: int = 0
+    typical: float = 0.0
+    fastest: float = 0.0
+    slowest: float = 0.0
+    # Why there is nothing to show. A span with no sample says so; it never
+    # reports zero, which would read as a deploy that took no time at all.
+    blocked: str = ""
+
+    @property
+    def measured(self) -> bool:
+        return self.samples > 0
+
+
+NOTHING_TIMED = {
+    "maintenance": "No deploy here has needed a maintenance window.",
+    "to_verify": "Nothing here has been verified after the deploy.",
+}
+
+NOT_REACHED = "No deploy here has recorded both ends of this."
+
+
+def timings(deployments: list[Deployment]) -> list[Timing]:
+    """The spans across a ledger's deploys, each either measured or saying why not."""
+    found = []
+    for key in SPAN_RECORDS:
+        seconds = sorted(
+            value
+            for deployment in deployments
+            if deployment.trusted
+            for span_key, value in deployment.spans.items()
+            if span_key == key
+        )
+        word = language.SPANS[key]
+        if not seconds:
+            found.append(
+                Timing(
+                    key=key,
+                    name=word.name,
+                    meaning=word.meaning,
+                    blocked=NOTHING_TIMED.get(key, NOT_REACHED),
+                )
+            )
+            continue
+        found.append(
+            Timing(
+                key=key,
+                name=word.name,
+                meaning=word.meaning,
+                samples=len(seconds),
+                typical=_median(seconds),
+                fastest=seconds[0],
+                slowest=seconds[-1],
+            )
+        )
+    return found
+
+
+def spoken(seconds: float | None) -> str:
+    """`under a second` for a span measured as zero; nothing at all for one not measured.
+
+    The difference matters: an empty string means the ledger cannot say, and
+    zero means it can and the step was that fast.
+    """
+    if seconds is None:
+        return ""
+    return took(seconds) or "under a second"
+
+
+def _median(values: list[float]) -> float:
+    middle = len(values) // 2
+    if len(values) % 2:
+        return values[middle]
+    return (values[middle - 1] + values[middle]) / 2

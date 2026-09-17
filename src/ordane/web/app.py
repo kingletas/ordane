@@ -50,6 +50,9 @@ def create_app(settings: Settings) -> FastAPI:
     templates.env.globals["config_name"] = config_module.CONFIG_NAME
     templates.env.globals["chain_state"] = language.chain_state
     templates.env.globals["ledger_outcome"] = language.ledger_outcome
+    templates.env.globals["span_name"] = language.span_name
+    templates.env.globals["span_meaning"] = language.span_meaning
+    templates.env.globals["spoken"] = ledger_module.spoken
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
     store = RunStore(settings.state_dir)

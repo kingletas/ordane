@@ -15,6 +15,19 @@
   {% if book.chain.state == 'broken' %}It breaks at line {{ book.chain.broken_line }}: {{ book.chain.reason }}{% endif %}
 </p>
 <table>
+  <thead><tr><th>How long deploys take here</th><th>Typically</th><th>Over</th></tr></thead>
+  <tbody>
+  {% for timing in book.timings %}
+    <tr>
+      <td title="{{ timing.meaning }}">{{ timing.name }}</td>
+      <td>{% if timing.measured %}{{ spoken(timing.typical) }}{% else %}<span class="muted">not measured</span>{% endif %}</td>
+      <td class="muted">{% if timing.measured %}{{ spoken(timing.fastest) }} to {{ spoken(timing.slowest) }}, over {{ timing.samples }}{% else %}{{ timing.blocked }}{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<table>
   <thead><tr><th>Started</th><th>Release</th><th>Outcome</th><th>Deployed by</th><th>Approved by</th></tr></thead>
   <tbody>
   {% for deployment in book.deployments %}

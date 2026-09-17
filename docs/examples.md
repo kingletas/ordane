@@ -210,7 +210,7 @@ ordane ledger --repo ~/control-plane
 ordane ledger last --repo ~/control-plane
 ```
 
-The first lists every deploy the playbook recorded, per environment, with who ran it and who approved it, and says whether each ledger's chain of hashes still holds. The second prints one deploy in full: who, what went out, whether it is what was approved and built, whether the site went into maintenance, whether a backup was taken, how it ended, and the flow it was all read from. Pass a release id instead of `last` for a particular one.
+The first lists every deploy the playbook recorded, per environment, with who ran it and who approved it, says whether each ledger's chain of hashes still holds, and prints how long deploys here usually take. The second prints one deploy's own spans among everything else. The second prints one deploy in full: who, what went out, whether it is what was approved and built, whether the site went into maintenance, whether a backup was taken, how it ended, and the flow it was all read from. Pass a release id instead of `last` for a particular one.
 
 Nothing here writes to a ledger. The deploy playbook does, which is why a deploy somebody ran from a terminal appears in it as well as one launched from the console.
 

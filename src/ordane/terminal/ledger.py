@@ -44,6 +44,7 @@ def books(found: list[ledger.Book], limit: int) -> None:
                 f" {deployment.release:<32} {deployment.deployer.name}"
                 f" {DIM}approved: {approver}{OFF}{mark}"
             )
+        _timings(book)
         hidden = len(book.deployments) - limit
         if hidden > 0:
             print(f"  {DIM}and {plural(hidden, 'older deploy')}{OFF}")
@@ -62,6 +63,13 @@ def deployment(book: ledger.Book, chosen: ledger.Deployment) -> None:
         print(f"  {mark} {answer.question:<36} {BOLD}{answer.answer}{OFF}")
         if answer.detail:
             print(f"    {'':<36} {DIM}{answer.detail}{OFF}")
+
+    heading("How long it took")
+    for key, seconds in chosen.spans.items():
+        mark = f"{YELLOW}!{OFF}" if key == ledger.HEADLINE else " "
+        print(f"  {mark} {language.span_name(key):<20} {BOLD}{ledger.spoken(seconds)}{OFF}")
+    if not chosen.spans:
+        print(f"  {DIM}Nothing in this deploy has two records to measure between.{OFF}")
 
     heading("How it went")
     for step in ledger.steps(chosen):
@@ -89,3 +97,21 @@ def _chain_line(book: ledger.Book) -> None:
     elif chain.state == ledger.INTACT:
         said = f"{plural(len(chain.entries), 'record')}, head {chain.head[:16]}…"
     print(f"  {colour}{word.name}{OFF}  {DIM}{said}{OFF}")
+
+
+def _timings(book: ledger.Book) -> None:
+    """What this ledger's deploys usually cost, printed under its list."""
+    measured = [one for one in book.timings if one.measured]
+    if not measured:
+        return
+    print()
+    for timing in measured:
+        over = f"over {plural(timing.samples, 'deploy')}"
+        spread = (
+            over
+            if timing.fastest == timing.slowest
+            else f"{ledger.spoken(timing.fastest)} to {ledger.spoken(timing.slowest)}, {over}"
+        )
+        print(
+            f"  {timing.name:<20} {BOLD}{ledger.spoken(timing.typical):<14}{OFF}{DIM}{spread}{OFF}"
+        )

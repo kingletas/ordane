@@ -259,10 +259,15 @@ The list on the left is each ledger and its deploys, newest first. Choose one an
 - **Whether it is what was approved and built.** The approved commit is compared with the built one, and the checksum at cutover with the checksum at build. A mismatch is shown in red.
 - **When** it started and how long it took.
 - **Whether the site went into maintenance**, and whether a backup was taken or failed.
+- **How long it took.** Every span is the gap between two records the ledger already carries: how long the maintenance page was up, the cutover, the build, the whole deploy, the warm-up, and the wait until somebody verified it. A phase with a record at only one end is not timed, and nothing is estimated.
 - **Whether it worked**, and how the cache warm-up went.
 - **Whether these records can be trusted.**
 
 Under the answers is the flow itself: one line per step, with its time, its detail and the person or host behind it. Anything you might want to paste, like a commit, a checksum, a signing key or a backup id, is listed at the foot with a copy button.
+
+Under that is how long deploys take in this environment: the typical figure for each span, its fastest and slowest, and how many deploys it was measured over. A span nothing has reached says so rather than showing zero, and a deploy whose records sit after a break in the chain is left out of every figure. **A span measured as zero and a span nobody can measure are different things, and the page says which**: the first reads *under a second*, the second reads *not measured*.
+
+The maintenance window leads wherever a timing is shown, because it is the only span customers experience.
 
 A deploy with no finish recorded says so, and names the last step it reached. The ledger alone cannot tell you whether that deploy stopped or is still running.
 
