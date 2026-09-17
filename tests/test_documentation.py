@@ -22,7 +22,15 @@ IN_A_CELL = re.compile(r"^\| `([^`]+)` \|", re.M)
 
 
 def documented_keys() -> dict[str, str]:
-    rows = re.findall(r"^\| `([^`]+)` \| ([^|]+?) \|", GUIDE.read_text(encoding="utf-8"), re.M)
+    """The shortcut table's rows, and only those.
+
+    Read over the whole guide this matched any table whose first cell was a
+    backticked word, so a field reference documenting `event` and `seq` failed
+    as a keyboard shortcut nothing binds.
+    """
+    guide = GUIDE.read_text(encoding="utf-8")
+    section = guide.split("## Keyboard shortcuts", 1)[-1].split("\n## ", 1)[0]
+    rows = re.findall(r"^\| `([^`]+)` \| ([^|]+?) \|", section, re.M)
     return {key: label.strip() for key, label in rows}
 
 

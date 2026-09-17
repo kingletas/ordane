@@ -281,6 +281,27 @@ Ordane reads whatever the playbook wrote and never fills a gap in. A deploy that
 | Caches warmed | the warm-up is on for this environment | it is off, or the deploy did not get that far |
 | Finished | the playbook reached its end | the deploy stopped, or is still running |
 
+### The fields it reads
+
+A ledger is one JSON object per line. Ordane reads these keys and shows anything else it finds only as part of the record:
+
+| Key | Used for |
+|---|---|
+| `seq`, `prev_hash`, `hash` | the chain. A line whose `seq` is not its line number, or whose hashes do not match, breaks it |
+| `event` | which step this is, and therefore which row of the flow |
+| `env_name`, `release` | grouping records into deploys, and naming them |
+| `recorded_at` | the times, and every span |
+| `actor` | who: `git_email`, `os_user`, `control_host`, `remote_user` |
+| `branch`, `goes_live`, `reused_release` | what the deploy was asked to do |
+| `commit`, `artefact_sha256`, `builder` | what went out, and whether the archive cut over is the one built |
+| `tag`, `signer`, `signing_key` | who approved it |
+| `backup_id`, `reason`, `error` | the backup, or why there is none |
+| `maintenance_window`, `setup_upgrade_ran` | whether the site went down, and why |
+| `requested`, `ok`, `percent` | the warm-up |
+| `outcome` | how the deploy ended, and whether verification passed |
+
+**A key Ordane does not know is not an error**, and a missing one is read as an absence rather than a zero. The playbook this was built against documents what writes each of them in [its ledger reference](https://github.com/kingletas/magento-deploy-playbook/blob/main/docs/ledger.md).
+
 A tenth, **Verified**, comes from the checks that run after a deploy, which are a separate playbook run and may be somebody else. Until they pass, the page says *Not yet*.
 
 So three of these are environment settings rather than faults: approval, the backup rule, and the warm-up. **Ordane cannot tell a setting from a failure**, which is why every absence is worded as what is missing rather than as something going wrong. If you want a deploy that exercises all nine, turn those three on in the environment first.
