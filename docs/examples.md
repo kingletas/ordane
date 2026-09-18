@@ -4,7 +4,7 @@ A recipe for each thing people actually do with Ordane, from the first run to a 
 
 The commands here are the terminal ones, because a page can show them. Everything in the first section is also a click in the desktop console, and the [user guide](user-guide.md) is where each view is described. The two front ends read the same catalogue, the same configuration and the same history, so neither can tell you something the other would contradict.
 
-Every recipe below was run against the two control planes that ship with Ordane: [`examples/control-plane`](../examples/control-plane), which reaches nothing, and [`examples/fleet`](../examples/fleet), whose runs reach fourteen containers and change them.
+Every recipe below was run against the two control planes that ship with Ordane: [`examples/control-plane`](../examples/control-plane), which reaches nothing, and [`examples/fleet`](../examples/fleet), whose runs reach fourteen containers and change them. The ledger recipes are the exception: neither example plane keeps a deploy ledger, so those were run against one a playbook wrote. `make demo` seeds two if you want them in front of you.
 
 ## Contents
 
@@ -218,7 +218,7 @@ Nothing here writes to a ledger. The deploy playbook does, which is why a deploy
 ordane ledger --repo ~/control-plane || echo "the ledger is broken or unreadable"
 ```
 
-Its exit status is **0** when every chain it read is intact, **2** when one is broken, and **1** when it found nothing to read. That last one matters for a scheduled job: a path that is mistyped, moved or renamed fails it rather than passing quietly for ever. See [Ledger](user-guide.md#ledger) for what the page shows, [the fields it reads](user-guide.md#the-fields-it-reads) for what a record has to carry, and [`ledgers`](configuration.md#ledgers) for pointing it at a file somewhere unusual.
+Its exit status is **0** when every chain it read is intact, **2** when one is broken, and **1** when it could read nothing at all or found a file that would not open. A path with nothing at it does not fail the job: an environment that has never deployed looks the same from here, and a nightly run that cries wolf on a fresh environment is one nobody reads. The listing names those paths. See [Ledger](user-guide.md#ledger) for what the page shows, [the fields it reads](user-guide.md#the-fields-it-reads) for what a record has to carry, and [`ledgers`](configuration.md#ledgers) for pointing it at a file somewhere unusual.
 
 ### Ask an environment whether its hosts are there
 
@@ -505,7 +505,7 @@ The danger labels, the parameters, the runbooks and the refusals all still apply
 
 ### Exit codes and unattended runs
 
-Every command exits 0 when it worked and 1 when it didn't, so `&&` and `set -e` behave. A refusal is a failure: an unknown environment, a missing required parameter and a target that failed all exit 1.
+Every command exits 0 when it worked and 1 when it didn't, so `&&` and `set -e` behave. `ordane ledger` is the one exception: it also exits 2, for a chain that has been broken. A refusal is a failure: an unknown environment, a missing required parameter and a target that failed all exit 1.
 
 A target that asks for confirmation can't be launched from a script unless you say so in advance:
 

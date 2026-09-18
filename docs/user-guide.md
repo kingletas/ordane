@@ -250,7 +250,7 @@ The Ledger reads the deploy playbook's own record of what it did: an append-only
 Each line carries a SHA-256 hash of the line before it. Change a line, delete one from the middle or swap two, and every hash after that point stops matching. Ordane checks the whole chain every time it reads the file, using the same rules as the tool that wrote it, and a pill beside each ledger says which of five states it is in: **Chain intact**, **Chain broken**, **No deploys yet**, **No ledger here**, or **Cannot be read**. A broken chain names the line and the reason, and every deploy recorded from that line on is marked as untrusted rather than hidden.
 
 > [!NOTE]
-> **Three things the chain cannot show, and the page says so rather than implying otherwise.** Records cut from the *end* leave a shorter file that still verifies, because nothing after them remains to break. A file rewritten whole and re-chained by whoever holds the writer verifies too. And the names in a record are what the machine reported, not what an identity provider checked: the approval signature is the one field nobody can forge.
+> **Three things the chain cannot show, and the page says so rather than implying otherwise.** Records cut from the *end* leave a shorter file that still verifies, because nothing after them remains to break. A file rewritten whole and re-chained by whoever holds the writer verifies too. And the names in a record are what the machine reported, not what an identity provider checked. The playbook verifies an approval signature at deploy time and records what it found; this is not where that check is re-run.
 >
 > All three are what the playbook's `audit.forward` setting is for: it sends every line somewhere the file's owner cannot rewrite. So the answer to *can these records be trusted* reads **Nothing in the file was changed**, which is what a hash chain proves, rather than a broader claim it cannot.
 
@@ -287,12 +287,19 @@ A tenth, **Verified**, comes from the checks that run after a deploy, which are 
 
 Three of these are environment settings rather than faults: approval, the backup rule, and the warm-up. **Ordane cannot tell a setting from a failure**, which is why every absence is worded as what is missing rather than as something going wrong.
 
+Under that is how long deploys take in this environment: the typical figure for each span, its fastest and slowest, and how many deploys it was measured over. A deploy whose records sit after a break in the chain is left out of every figure. **A span measured as zero and a span nobody can measure are different things, and the page says which**: the first reads *under a second*, the second reads *not measured*.
+
+The maintenance window leads wherever a timing is shown, because it is the only span customers experience.
+
+A deploy with no finish recorded says so, and names the last step it reached. The ledger alone cannot tell you whether that deploy stopped or is still running.
+
 ### The fields it reads
 
 A ledger is one JSON object per line. Ordane reads these keys:
 
 | Key | Used for |
 |---|---|
+| `schema` | the record format. A ledger written in a newer one is named as such rather than read as though its fields were empty |
 | `seq`, `prev_hash`, `hash` | the chain. A line whose `seq` is not its line number, or whose hashes do not match, breaks it |
 | `event` | which step this is, and therefore which row of the flow |
 | `env_name`, `release` | grouping records into deploys, and naming them |
@@ -308,12 +315,6 @@ A ledger is one JSON object per line. Ordane reads these keys:
 
 **A key Ordane does not know is not an error.** The playbook this was built against documents what writes each of them in [its ledger reference](https://github.com/kingletas/magento-deploy-playbook/blob/main/docs/ledger.md).
 
-Under that is how long deploys take in this environment: the typical figure for each span, its fastest and slowest, and how many deploys it was measured over. A deploy whose records sit after a break in the chain is left out of every figure. **A span measured as zero and a span nobody can measure are different things, and the page says which**: the first reads *under a second*, the second reads *not measured*.
-
-The maintenance window leads wherever a timing is shown, because it is the only span customers experience.
-
-A deploy with no finish recorded says so, and names the last step it reached. The ledger alone cannot tell you whether that deploy stopped or is still running.
-
 Ordane finds the ledgers in the inventory, from the `audit.path` each environment's `group_vars` declares. To point it somewhere else, see [`ledgers`](configuration.md#ledgers). To read one without opening the window:
 
 ```bash
@@ -324,9 +325,12 @@ ordane ledger --repo ~/control-plane
 ordane ledger last --repo ~/control-plane
 ```
 
-The first lists the ten newest deploys per ledger, or `-n` of them, and its exit status is the point: **0** when every chain it read is intact, **2** when one is broken, and **1** when there was nothing to read at all, so a mistyped path fails the job rather than passing it quietly. The second prints one deploy in full. Pass a release id instead of `last` to choose which.
+The first lists the ten newest deploys per ledger, or `-n` of them, and its exit status is the point: **0** when every chain it read is intact, **2** when one is broken, and **1** when it could read nothing at all or a file it found would not open. A path with no file at it does not fail the job, because an environment that has never deployed looks exactly the same from here; the listing names those paths either way. The second prints one deploy in full. Pass a release id instead of `last` to choose which.
 
-`--ledger PATH` reads a file you name instead of the configured ones, and it works on `ordane app` and `ordane serve` too. `ordane --page ledger` opens the desktop console on this view.
+`--ledger PATH` reads a file you name instead of the configured ones, and it works on `ordane app` and `ordane serve` too.
+
+> [!WARNING]
+> An evidence bundle is not a ledger and does not read as one. The playbook's `make evidence` writes one deploy's records with the `seq` and `prev_hash` they had in the file they came from, so the chain in it starts in the middle: Ordane reports it as broken at line 1, and it is not. Read a bundle against the ledger it was cut from. `ordane --page ledger` opens the desktop console on this view.
 
 ## Setup
 
