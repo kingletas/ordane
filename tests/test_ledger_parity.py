@@ -12,6 +12,7 @@ fails here rather than being noticed by somebody reading a page months later.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -87,7 +88,13 @@ def as_a_bundle(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (out / "summary.md").write_text("# a release\n", encoding="utf-8")
-    (out / "SHA256SUMS").write_text("", encoding="utf-8")
+    (out / "SHA256SUMS").write_text(
+        "".join(
+            f"{hashlib.sha256((out / one).read_bytes()).hexdigest()}  {one}\n"
+            for one in ("audit.jsonl", "chain.txt", "summary.md")
+        ),
+        encoding="utf-8",
+    )
     return out / "audit.jsonl"
 
 

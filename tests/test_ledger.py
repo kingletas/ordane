@@ -6,6 +6,7 @@ invented names, so the reader is held to the writer rather than to itself.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.machinery
 import importlib.util
 import json
@@ -643,6 +644,49 @@ def test_the_writer_still_hashes_a_record_the_way_this_reader_does(tmp_path):
     )
 
 
+@pytest.mark.skipif(not os.environ.get("ORDANE_PLAYBOOK"), reason="needs a playbook checkout")
+def test_a_bundle_the_writer_wrote_is_read_as_an_excerpt(tmp_path):
+    """The one check that the bundle format is the writer's and not this reader's guess.
+
+    Both bundle fixtures here write the shape they then read, so between them
+    they prove nothing about the tool that produces one. If the writer ever
+    spells a label differently, a real bundle stops being recognised as one and
+    is reported as a tamper, which is the failure this whole path exists to
+    remove.
+    """
+    tool = Path(os.environ["ORDANE_PLAYBOOK"]) / "bin" / "audit-log"
+    loader = importlib.machinery.SourceFileLoader("audit_log_writer", str(tool))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    writer = importlib.util.module_from_spec(spec)
+    loader.exec_module(writer)
+
+    log = tmp_path / "staging.audit.jsonl"
+    # A second release in the middle, so the bundle skips it and the numbering
+    # has the gap a real one has.
+    for release, event in (
+        ("r1", "deploy.started"),
+        ("r1", "approval.verified"),
+        ("r1", "build.succeeded"),
+        ("r2", "deploy.started"),
+        ("r1", "deploy.finished"),
+        ("r1", "deploy.verified"),
+    ):
+        writer.append(log, {"event": event, "release": release, "environment": "staging"}, "")
+    out = tmp_path / "evidence"
+    writer.write_evidence(log, "r1", out)
+
+    numbers = [record["seq"] for record in lines_of(out / "audit.jsonl")]
+    assert numbers != list(range(numbers[0], numbers[0] + len(numbers))), (
+        "the writer produced a contiguous bundle, so this fixture proves nothing about gaps"
+    )
+
+    chain = ledger.read(out / "audit.jsonl", named=True)
+
+    assert chain.state == ledger.FRAGMENT, f"a bundle the writer wrote reads as {chain.state}"
+    assert all(entry.trusted for entry in chain.entries)
+    assert chain.bundle is not None and chain.bundle.head
+
+
 # --- an excerpt of a ledger, which is what an evidence bundle is ---
 
 
@@ -677,13 +721,26 @@ def a_bundle(tmp_path, keep, folder="evidence"):
         encoding="utf-8",
     )
     (out / "summary.md").write_text("# r1\n", encoding="utf-8")
-    (out / "SHA256SUMS").write_text("", encoding="utf-8")
+    seal(out)
     return out / "audit.jsonl"
+
+
+def seal(out: Path) -> None:
+    """Write the bundle's SHA256SUMS over what is in it, as the writer does."""
+    covered = ("SHA256SUMS", "audit.jsonl", "chain.txt", "summary.md")
+    names = [one for one in covered if one != "SHA256SUMS" and (out / one).is_file()]
+    (out / "SHA256SUMS").write_text(
+        "".join(
+            f"{hashlib.sha256((out / one).read_bytes()).hexdigest()}  {one}\n"
+            for one in sorted(names)
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_an_evidence_bundle_is_read_as_an_excerpt(plane, tmp_path):
     """A bundle is a copy somebody asked for, and was reported as broken at line 1."""
-    chain = ledger.read(a_bundle(tmp_path, range(2, 6)))
+    chain = ledger.read(a_bundle(tmp_path, range(2, 6)), named=True)
 
     assert chain.state == ledger.FRAGMENT
     assert chain.broken_line == 0, "a bundle was reported as breaking somewhere"
@@ -700,7 +757,7 @@ def test_a_bundle_whose_records_skip_what_ran_in_between(plane, tmp_path):
     seqs = [json.loads(line)["seq"] for line in cut.read_text(encoding="utf-8").splitlines()]
     assert seqs != list(range(seqs[0], seqs[0] + len(seqs))), "this fixture has no gap in it"
 
-    chain = ledger.read(cut)
+    chain = ledger.read(cut, named=True)
 
     assert chain.state == ledger.FRAGMENT
     assert all(e.trusted for e in chain.entries)
@@ -708,7 +765,7 @@ def test_a_bundle_whose_records_skip_what_ran_in_between(plane, tmp_path):
 
 def test_a_bundle_says_which_log_it_came_from(plane, tmp_path):
     """The bundle's own numbers are what an auditor checks it against."""
-    chain = ledger.read(a_bundle(tmp_path, range(2, 6)))
+    chain = ledger.read(a_bundle(tmp_path, range(2, 6)), named=True)
 
     assert chain.bundle is not None
     assert chain.bundle.log.endswith("whole.audit.jsonl")
@@ -725,7 +782,7 @@ def test_a_record_edited_inside_a_bundle_still_breaks_it(plane, tmp_path):
     lines[1] = json.dumps(record, sort_keys=True)
     cut.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    assert ledger.read(cut).state == ledger.BROKEN
+    assert ledger.read(cut, named=True).state == ledger.BROKEN
 
 
 def test_a_record_swapped_for_one_the_bundle_never_listed_breaks_it(plane, tmp_path):
@@ -736,7 +793,7 @@ def test_a_record_swapped_for_one_the_bundle_never_listed_breaks_it(plane, tmp_p
     lines[1] = other.read_text(encoding="utf-8").splitlines()[0]
     cut.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    assert ledger.read(cut).state == ledger.BROKEN
+    assert ledger.read(cut, named=True).state == ledger.BROKEN
 
 
 def test_a_ledger_with_its_opening_records_gone_is_broken(plane, tmp_path):
@@ -758,7 +815,7 @@ def test_a_ledger_with_its_opening_records_gone_is_broken(plane, tmp_path):
 
 
 def test_an_excerpt_says_it_cannot_be_trusted_on_its_own(plane, tmp_path):
-    chain = ledger.read(a_bundle(tmp_path, range(2, 6)))
+    chain = ledger.read(a_bundle(tmp_path, range(2, 6)), named=True)
     deployments = ledger.deployments(chain)
     answers = ledger.answers(deployments[0], chain)
     trust = next(a for a in answers if a.question == "Can these records be trusted?")

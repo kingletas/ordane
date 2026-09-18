@@ -14,7 +14,7 @@ from __future__ import annotations
 import glob
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -147,10 +147,11 @@ class Entry:
         return str(value).strip().lower() in ("true", "yes", "1")
 
 
-# The three files `audit-log write-evidence` puts beside a bundle's records.
-# All three, because one file alone is too easy to find next to a ledger by
-# accident, and reading a live ledger as a bundle is the failure that matters.
+# What the writer puts in an evidence bundle beside the records themselves.
 BUNDLE_FILES = ("chain.txt", "summary.md", "SHA256SUMS")
+# And what the writer calls the records. A bundle is a folder it wrote whole,
+# so the name is part of the shape rather than a convention to be lenient about.
+BUNDLE_RECORDS = "audit.jsonl"
 
 
 @dataclass(frozen=True)
@@ -424,21 +425,81 @@ def record_hash(record: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _bundle_beside(path: Path) -> Bundle | None:
+# Enough for a bundle of any size a person would hand over, and a ceiling so a
+# hostile file cannot be read into memory unbounded.
+CHAIN_TXT_LIMIT = 4 * 1024 * 1024
+
+
+def _whole_number(text: str) -> int | None:
+    """The number this text is, or nothing. `isdigit` and `int` disagree on what a digit is."""
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
+def _sums_hold(folder: Path) -> bool:
+    """Whether every file the bundle's `SHA256SUMS` lists still hashes to what it says.
+
+    It covers the records and the `chain.txt` both, so checking it is what
+    catches a record removed, reordered or added after the bundle was written.
+    It proves nothing against whoever wrote the bundle, who can write the sums
+    to match, and it is not asked to.
+    """
+    try:
+        listed = (folder / "SHA256SUMS").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    checked = 0
+    for line in listed.splitlines():
+        digest, spaced, name = line.partition("  ")
+        if not spaced:
+            continue
+        # A name is a file in this folder and never a path out of it.
+        if "/" in name or name in ("", ".", ".."):
+            return False
+        target = folder / name
+        if not target.is_file():
+            return False
+        try:
+            if hashlib.sha256(target.read_bytes()).hexdigest() != digest.strip():
+                return False
+        except OSError:
+            return False
+        checked += 1
+    return checked > 0
+
+
+def _bundle_beside(path: Path) -> tuple[Bundle | None, str]:
     """The `chain.txt` of an evidence bundle, when the records sit in one.
 
     A bundle is a selection rather than a chain. It holds one release's records,
     so the numbering skips whatever else ran in between and the gaps can never
-    link. What makes it checkable is the file the writer puts beside it, naming
-    the log, how long it was and where it ended.
+    link. What makes it checkable is the folder the writer wrote around it.
+
+    Only ever asked about a path somebody named, never about a ledger this
+    console went looking for. The files that say "this is a bundle" sit in the
+    same directory as the records, so anything that can write that directory
+    could otherwise decide how a live ledger is read.
     """
     folder = path.parent
-    if not all((folder / name).exists() for name in BUNDLE_FILES):
-        return None
+    if path.name != BUNDLE_RECORDS:
+        return None, ""
+    if not all((folder / name).is_file() for name in BUNDLE_FILES):
+        return None, ""
+    # From here the folder is a bundle, so a failure is a bundle that cannot be
+    # checked rather than something to read as an ordinary ledger. Read the
+    # other way it would report a chain that breaks at line 1, which sends the
+    # reader looking at the records instead of at what was done to the folder.
+    if not _sums_hold(folder):
+        return None, "the bundle's SHA256SUMS does not match the files in it"
     try:
+        if (folder / "chain.txt").stat().st_size > CHAIN_TXT_LIMIT:
+            return None, "the bundle's chain.txt is too large to read"
         text = (folder / "chain.txt").read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
-        return None
+        return None, "the bundle's chain.txt could not be read"
+
     facts: dict[str, str] = {}
     rows: dict[int, tuple[str, str]] = {}
     for line in text.splitlines():
@@ -447,51 +508,79 @@ def _bundle_beside(path: Path) -> Bundle | None:
             facts[label.strip()] = value.strip()
             continue
         columns = line.split()
-        if len(columns) >= 3 and columns[0].isdigit():
-            rows[int(columns[0])] = (columns[1], columns[2])
-    if "head hash" not in facts:
-        return None
-    length = facts.get("records in log", "")
-    return Bundle(
-        log=facts.get("log", ""),
-        records=int(length) if length.isdigit() else 0,
-        head=facts["head hash"],
-        rows=rows,
+        if len(columns) < 3:
+            continue
+        seq = _whole_number(columns[0])
+        # A second row for one number would let a chain.txt quietly redefine a
+        # record, so it is a malformed bundle rather than a last-one-wins.
+        if seq is None or seq in rows:
+            continue
+        rows[seq] = (columns[1], columns[2])
+    if not facts.get("head hash") or not rows:
+        return None, "the bundle's chain.txt names no head hash, or lists no records"
+    return (
+        Bundle(
+            log=facts.get("log", ""),
+            records=_whole_number(facts.get("records in log", "")) or 0,
+            head=facts["head hash"],
+            rows=rows,
+        ),
+        "",
     )
 
 
 def _read_bundle(path: Path, name: str, lines: list[str], bundle: Bundle) -> Chain:
     """An evidence bundle, checked against the `chain.txt` that came with it.
 
-    Records that are next to each other in the log still link, and the rest
-    cannot, so what is asked of every record is that it hashes to its own
-    contents and is the record `chain.txt` wrote down at that number.
+    The records are a selection, so two of them link only where they were next
+    to each other in the log. `chain.txt` is what closes the rest: it holds the
+    hash of every record the bundle was written with, so a record's predecessor
+    can be checked across a gap in the file, and a record missing from the file
+    is one the manifest still lists.
     """
     entries: list[Entry] = []
     broken_line, reason = 0, ""
-    # Seeded at genesis so a bundle that happens to start at record one has its
-    # first link checked like any other. A bundle starting later has nothing
-    # before it in the file, and the `seq` test below is what skips that link.
-    last_seq, last_hash = 0, GENESIS
+    seen: set[int] = set()
+    highest, previous = 0, GENESIS
     for number, line in enumerate(lines, 1):
         record, problem = _parse(line)
         if not broken_line and problem:
             broken_line, reason = number, problem
         elif not broken_line:
             seq = record.get("seq")
-            row = bundle.rows.get(seq) if isinstance(seq, int) else None
+            # `type` rather than `isinstance`, which counts True as 1.
+            listed = type(seq) is int
+            row = bundle.rows.get(seq) if listed else None
+            before = bundle.rows.get(seq - 1) if listed else None
+            expected = before[1] if before is not None else (previous if seq == highest + 1 else "")
             if record.get("hash") != record_hash(record):
                 broken_line, reason = number, "hash does not match the record's contents"
             elif row is None:
                 broken_line, reason = number, f"seq {seq!r} is not in the bundle's chain.txt"
             elif (record.get("prev_hash"), record.get("hash")) != row:
                 broken_line, reason = number, "the record is not the one chain.txt recorded"
-            elif seq == last_seq + 1 and record.get("prev_hash") != last_hash:
+            elif seq in seen:
+                broken_line, reason = number, f"seq {seq} is in this bundle twice"
+            elif seq <= highest:
+                broken_line, reason = number, f"seq {seq} comes after {highest} in the file"
+            elif expected and record.get("prev_hash") != expected:
                 broken_line, reason = number, "prev_hash does not match the record before it"
             else:
-                last_seq, last_hash = seq, record["hash"]
+                seen.add(seq)
+                highest, previous = seq, record["hash"]
         if record:
             entries.append(_entry(record, number, trusted=not broken_line))
+
+    # The manifest is a manifest, not a lookup. A record taken out of the file
+    # after the bundle was written leaves every remaining record verifying.
+    if not broken_line and len(seen) != len(bundle.rows):
+        missing = sorted(set(bundle.rows) - seen)
+        broken_line = len(lines)
+        reason = (
+            f"chain.txt lists {len(bundle.rows)} records and this file holds {len(seen)}: "
+            f"{', '.join(str(one) for one in missing[:5])} missing"
+        )
+        entries = [replace(entry, trusted=False) for entry in entries]
 
     if not name and entries:
         name = entries[0].environment
@@ -503,11 +592,11 @@ def _read_bundle(path: Path, name: str, lines: list[str], bundle: Bundle) -> Cha
             entries=entries,
             broken_line=broken_line,
             reason=reason,
-            head=last_hash,
+            head=previous if previous != GENESIS else "",
             bundle=bundle,
         )
     return Chain(
-        path=path, environment=name, state=FRAGMENT, entries=entries, head=last_hash, bundle=bundle
+        path=path, environment=name, state=FRAGMENT, entries=entries, head=previous, bundle=bundle
     )
 
 
@@ -547,8 +636,14 @@ def _read_chain(path: Path, name: str, lines: list[str]) -> Chain:
     return Chain(path=path, environment=name, state=INTACT, entries=entries, head=previous)
 
 
-def read(path: Path, environment: str = "") -> Chain:
-    """The chain in one file. Never raises: an unreadable ledger is a state, not a crash."""
+def read(path: Path, environment: str = "", *, named: bool = False) -> Chain:
+    """The chain in one file. Never raises: an unreadable ledger is a state, not a crash.
+
+    `named` says a person pointed at this path rather than this console finding
+    it, and only such a path can be an evidence bundle. A ledger reached from
+    configuration or an inventory is the control plane's own record, and no
+    file sitting next to it gets to say otherwise.
+    """
     name = environment or _environment_from_name(path)
     if not path.exists():
         return Chain(path=path, environment=name, state=MISSING)
@@ -558,7 +653,21 @@ def read(path: Path, environment: str = "") -> Chain:
         return Chain(path=path, environment=name, state=UNREADABLE, reason=str(exc))
     if not lines:
         return Chain(path=path, environment=name, state=EMPTY)
-    bundle = _bundle_beside(path)
+    bundle, unusable = _bundle_beside(path) if named else (None, "")
+    if unusable:
+        entries = [
+            _entry(record, number, trusted=False)
+            for number, line in enumerate(lines, 1)
+            if (record := _parse(line)[0])
+        ]
+        return Chain(
+            path=path,
+            environment=name or (entries[0].environment if entries else ""),
+            state=BROKEN,
+            entries=entries,
+            broken_line=1,
+            reason=unusable,
+        )
     if bundle is not None:
         return _read_bundle(path, name, lines, bundle)
     return _read_chain(path, name, lines)
@@ -1080,11 +1189,12 @@ def _trust(d: Deployment, chain: Chain) -> Answer:
         return Answer(
             question,
             "Not on their own",
-            f"These {len(chain.entries)} records are a copy of one release, taken from "
+            f"All {len(chain.entries)} records this bundle was written with are here, each "
+            "still hashing to its own contents, each the record its chain.txt recorded, and "
+            "its checksums hold. The bundle says it was cut from "
             f"{bundle.log}, which held {bundle.records} records and ended at "
-            f"{_short(bundle.head, 16)}…. Each one still hashes to its own contents and is the "
-            "record the copy's chain.txt wrote down. That they are all of it, and that the log "
-            "itself was never rewritten, can only be answered against that log.",
+            f"{_short(bundle.head, 16)}…. Nothing here can check that claim, because whoever "
+            "wrote the bundle wrote those lines too. Only the log itself can answer it.",
             language.ATTENTION,
             exact=(bundle.head,),
         )
@@ -1130,7 +1240,7 @@ def gather(repo: Path, declared: list[str], given: list[Path] | None = None) -> 
     """Every ledger this control plane has, read and grouped, the most recently deployed first."""
     books = []
     for source in locate(repo, declared, given):
-        chain = read(source.path, source.environment)
+        chain = read(source.path, source.environment, named=source.origin == FLAG)
         books.append(Book(source=source, chain=chain, deployments=deployments(chain)))
     return sorted(books, key=_newest, reverse=True)
 
