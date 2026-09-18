@@ -61,6 +61,14 @@ main { max-width: 1080px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
 
 .notice { padding: 0.6rem 1.25rem; font-size: 0.92rem; border-bottom: 1px solid var(--line); }
 .notice.warn { background: color-mix(in srgb, var(--warn) 14%, var(--panel)); }
+/* The engine grades every answer and every chain state. A page that renders a
+   problem in the same weight as an all-clear is worse than one that says
+   nothing, so each level gets its own colour. */
+.level-ok { color: var(--ok); }
+.level-attention { color: var(--warn); font-weight: 600; }
+.level-problem { color: var(--bad); font-weight: 700; }
+.level-unknown { color: var(--muted); }
+
 .notice.danger { background: color-mix(in srgb, var(--bad) 16%, var(--panel)); border-radius: 6px; border: 1px solid var(--bad); margin-bottom: 1rem; }
 .notice.live { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 .notice.live a { color: inherit; text-decoration: none; margin-right: 1rem; }

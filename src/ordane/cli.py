@@ -566,8 +566,16 @@ def _app(args, repo: Path) -> int:
     )
 
 
+# What `ordane ledger` says to whatever runs it. A scheduled job needs to hear
+# about a ledger that has gone missing as loudly as one that has been edited:
+# the path in a config file is exactly the thing that goes stale unnoticed.
+LEDGER_INTACT = 0
+LEDGER_NOTHING_READ = 1
+LEDGER_BROKEN = 2
+
+
 def _ledger(args, repo: Path) -> int:
-    """Every ledger, or one deploy in full. Exits 2 when a chain is broken."""
+    """Every ledger, or one deploy in full. 0 intact, 1 nothing read, 2 broken."""
     try:
         declared = config_module.load(repo).ledgers
     except config_module.ConfigError as exc:
@@ -578,9 +586,25 @@ def _ledger(args, repo: Path) -> int:
         if found is None:
             sys.exit(f"ordane: no deploy of {args.release!r} in any ledger")
         ledger_view.deployment(*found)
-        return 2 if not found[0].chain.intact and found[0].chain.entries else 0
+        broken = found[0].chain.state == ledger.BROKEN
+        return LEDGER_BROKEN if broken else LEDGER_INTACT
     ledger_view.books(books, args.limit)
-    return 2 if any(b.chain.state == ledger.BROKEN for b in books) else 0
+    return _ledger_status(books)
+
+
+def _ledger_status(books: list) -> int:
+    """A ledger that exists and holds no deploys yet is healthy; none at all is not."""
+    if any(book.chain.state == ledger.BROKEN for book in books):
+        return LEDGER_BROKEN
+    readable = [b for b in books if b.chain.state in (ledger.INTACT, ledger.EMPTY)]
+    if not readable:
+        print(
+            "\nNothing was read: no ledger is configured, or every path names a file "
+            "that is not there.",
+            file=sys.stderr,
+        )
+        return LEDGER_NOTHING_READ
+    return LEDGER_INTACT
 
 
 def _serve(args, repo: Path, cat, cfg) -> int:

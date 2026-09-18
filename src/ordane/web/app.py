@@ -35,6 +35,19 @@ class Settings:
     ledgers: tuple[Path, ...] = ()
 
 
+# A chain state carries the same weight here as it does in the other two front
+# ends: the alarm is never quieter than the all-clear.
+CHAIN_CLASS = {
+    "intact": "level-ok",
+    "broken": "level-problem",
+    "unreadable": "level-attention",
+}
+
+
+def _chain_class(state: str) -> str:
+    return CHAIN_CLASS.get(state, "level-unknown")
+
+
 def create_app(settings: Settings) -> FastAPI:
     app = FastAPI(title="Ordane", docs_url=None, redoc_url=None, openapi_url=None)
     templates = Jinja2Templates(directory=str(HERE / "templates"))
@@ -53,6 +66,8 @@ def create_app(settings: Settings) -> FastAPI:
     templates.env.globals["span_name"] = language.span_name
     templates.env.globals["span_meaning"] = language.span_meaning
     templates.env.globals["spoken"] = ledger_module.spoken
+    templates.env.globals["newer_format"] = language.newer_format
+    templates.env.globals["chain_class"] = _chain_class
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
     store = RunStore(settings.state_dir)
@@ -240,6 +255,7 @@ def create_app(settings: Settings) -> FastAPI:
         if found is None:
             return page(request, "error.html", config=cfg, message=f"no deploy of {release!r}")
         book, deployment = found
+        answers = ledger_module.answers(deployment, book.chain)
         return page(
             request,
             "deploy.html",
@@ -247,7 +263,8 @@ def create_app(settings: Settings) -> FastAPI:
             book=book,
             deployment=deployment,
             steps=ledger_module.steps(deployment),
-            answers=ledger_module.answers(deployment, book.chain),
+            answers=answers,
+            exact=list(dict.fromkeys(value for one in answers for value in one.exact)),
         )
 
     @app.get("/runs", response_class=HTMLResponse)

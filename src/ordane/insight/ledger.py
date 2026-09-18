@@ -25,6 +25,11 @@ from ..presentation.text import moment, took
 
 GENESIS = "0" * 64
 
+# The record format this reader was written against. A newer one is read as far
+# as it can be and said out loud, never refused: a playbook upgrade must not
+# take the console down for every environment at once.
+SCHEMA = 1
+
 INTACT = "intact"
 BROKEN = "broken"
 EMPTY = "empty"
@@ -116,6 +121,11 @@ class Entry:
     hash: str = ""
     trusted: bool = True
 
+    @property
+    def schema(self) -> int:
+        value = self.fields.get("schema")
+        return value if isinstance(value, int) else 0
+
     def get(self, key: str, default: object = "") -> object:
         return self.fields.get(key, default)
 
@@ -148,6 +158,12 @@ class Chain:
     @property
     def untrusted(self) -> int:
         return sum(1 for e in self.entries if not e.trusted)
+
+    @property
+    def newer_schema(self) -> int:
+        """The highest record format above this reader's, or 0 when there is none."""
+        found = [e.schema for e in self.entries if e.schema > SCHEMA]
+        return max(found) if found else 0
 
 
 @dataclass(frozen=True)
@@ -792,6 +808,8 @@ def _when_it_ran(d: Deployment) -> Answer:
         if d.span(key) is not None
     ]
     detail = f"Took {spoken(d.duration_s)}."
+    if not parts:
+        return Answer("When?", f"Started {started}", detail)
     return Answer("When?", f"Started {started}", f"{detail} {text.sentence(parts).capitalize()}.")
 
 
@@ -898,8 +916,11 @@ def _trust(d: Deployment, chain: Chain) -> Answer:
         )
     return Answer(
         question,
-        "Yes",
-        f"All {len(chain.entries)} records link back to the start. Head {_short(chain.head, 16)}…",
+        "Nothing in the file was changed",
+        f"The {len(chain.entries)} records here link back to the start, so none was edited "
+        "or reordered. The chain cannot show records cut from the end, or a file rewritten "
+        "whole by whoever holds the writer, and the names in it are what the machine said "
+        f"rather than what anyone checked. Head {_short(chain.head, 16)}…",
         exact=(chain.head,),
     )
 

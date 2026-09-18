@@ -589,3 +589,80 @@ def test_a_deploy_after_loose_records_is_still_its_own_deploy(tmp_path):
     assert (newest.release, newest.outcome) == ("r1", ledger.SUCCEEDED)
     assert older.outcome == ledger.RECORDS_ONLY
     assert len(newest.entries) == 6
+
+
+# --- what the command says to whatever runs it ---
+
+
+@pytest.mark.parametrize(
+    ("case", "expected"),
+    [("missing", 1), ("no-config", 1), ("empty-glob", 1), ("empty-file", 0), ("intact", 0)],
+)
+def test_the_exit_status_says_whether_anything_was_read(plane, tmp_path, case, expected):
+    """A scheduled job has to hear about a ledger that has gone, not only one that was edited.
+
+    The quiet direction is the one that will go wrong: a ledger that exists and
+    holds no deploys yet is a fresh environment, not a fault, and stays 0.
+    """
+    argv = ["ledger", "--repo", str(plane)]
+    if case == "missing":
+        argv += ["--ledger", str(tmp_path / "nowhere.audit.jsonl")]
+    elif case == "empty-glob":
+        (plane / config_module.CONFIG_NAME).write_text(
+            "ledgers: [state/*.audit.jsonl]\n", encoding="utf-8"
+        )
+    elif case == "empty-file":
+        empty = tmp_path / "staging.audit.jsonl"
+        empty.write_text("", encoding="utf-8")
+        argv += ["--ledger", str(empty)]
+    elif case == "intact":
+        argv += ["--ledger", str(FIXTURE)]
+    assert cli.main(argv) == expected
+
+
+def test_a_broken_chain_outranks_everything_else_read(plane, tmp_path, capsys):
+    records = lines_of(FIXTURE)
+    records[4]["backup_id"] = "db-snapshot-FAKE"
+    broken = tmp_path / "staging.audit.jsonl"
+    rewrite(broken, records)
+
+    code = cli.main(
+        ["ledger", "--repo", str(plane), "--ledger", str(FIXTURE), "--ledger", str(broken)]
+    )
+    assert code == 2
+    assert "Chain broken" in capsys.readouterr().out
+
+
+# --- a format newer than this reader ---
+
+
+def test_a_newer_schema_is_named_rather_than_swallowed(tmp_path):
+    """The writer's contract says schema moves when fields stop being only added."""
+    records = a_full_deploy()
+    for record in records:
+        record["schema"] = ledger.SCHEMA + 1
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+
+    assert chain.state == ledger.INTACT, "a newer format is still a readable chain"
+    assert chain.newer_schema == ledger.SCHEMA + 1
+    assert "newer than this reader knows" in language.newer_format(chain.newer_schema)
+
+
+def test_the_schema_this_reader_was_written_against_is_not_flagged(tmp_path):
+    """The quiet direction: today's records must not all read as a newer format."""
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", a_full_deploy()))
+    assert chain.newer_schema == 0
+    assert ledger.read(FIXTURE).newer_schema == 0
+
+
+def test_a_deploy_with_no_build_or_cutover_span_reads_as_one_sentence(tmp_path):
+    """`Took 5m 00s. .` is what an empty list did to the sentence after it."""
+    records = [
+        event("deploy.started", branch="main", goes_live=True),
+        event("deploy.finished", outcome="success"),
+    ]
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+    [deployment] = ledger.deployments(chain)
+    said = answer(deployment, chain, "When?")
+    assert ". ." not in said.detail
+    assert said.detail.endswith(".")

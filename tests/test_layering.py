@@ -67,18 +67,38 @@ def test_presentation_depends_on_nothing_in_this_package():
         assert not imported_layers(path), f"{path.name} reaches out of presentation"
 
 
+def engine_modules() -> list[str]:
+    """Every engine module by import path, read from the package rather than listed.
+
+    This was a hardcoded list of seventeen names against fifty-odd modules, and
+    a name in it referred to a module that had been deleted, swallowed by an
+    `except ModuleNotFoundError`. So the check that proves the engine needs no
+    toolkit was reaching a third of it, and `insight.ledger` was not in the
+    third. A list of names is a rule that goes stale in silence.
+    """
+    found = []
+    for layer in ENGINE:
+        for path in modules_in(layer):
+            parts = path.relative_to(PACKAGE).with_suffix("").parts
+            if parts[-1] == "__init__":
+                parts = parts[:-1]
+            found.append(".".join(("ordane", *parts)))
+    return sorted(found)
+
+
+def test_the_probe_reaches_every_engine_module():
+    """A name that no longer resolves must fail here rather than be skipped."""
+    names = engine_modules()
+    assert len(names) > 40, f"the walk found only {len(names)} engine modules"
+    assert "ordane.insight.ledger" in names
+
+
 def test_the_engine_imports_no_toolkit_and_no_web_framework():
     """In a fresh interpreter: importing a module twice in one session hides this."""
     program = (
         "import sys, importlib\n"
-        f"for layer in {ENGINE!r}:\n"
-        "    for name in ('catalog','config','allowlist','command','search','doctor','recent',\n"
-        "                 'store','runner','summary','dora','redact','metrics','health',\n"
-        "                 'language','text','ansi'):\n"
-        "        try:\n"
-        "            importlib.import_module(f'ordane.{layer}.{name}')\n"
-        "        except ModuleNotFoundError:\n"
-        "            continue\n"
+        f"for name in {engine_modules()!r}:\n"
+        "    importlib.import_module(name)\n"
         f"leaked = [m for m in {FRONT_END_ONLY!r} if m in sys.modules]\n"
         "print(','.join(leaked))\n"
     )

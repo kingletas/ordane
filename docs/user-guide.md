@@ -247,10 +247,12 @@ At the foot is what these numbers do not cover, in the copy rather than in fine 
 
 The Ledger reads the deploy playbook's own record of what it did: an append-only file with one line per step of every deploy. Ordane does not write to it. The playbook does, whether the deploy was launched from here or typed into a terminal, so this is the one place that shows deploys this console never saw.
 
-Each line carries a SHA-256 hash of the line before it. Change a line, delete one or swap two, and every hash after that point stops matching. Ordane checks the whole chain every time it reads the file, using the same rules as the tool that wrote it, and a pill beside each ledger says **Chain intact** or **Chain broken**. A broken chain names the line and the reason, and every deploy recorded from that line on is marked as untrusted rather than hidden.
+Each line carries a SHA-256 hash of the line before it. Change a line, delete one from the middle or swap two, and every hash after that point stops matching. Ordane checks the whole chain every time it reads the file, using the same rules as the tool that wrote it, and a pill beside each ledger says which of five states it is in: **Chain intact**, **Chain broken**, **No deploys yet**, **No ledger here**, or **Cannot be read**. A broken chain names the line and the reason, and every deploy recorded from that line on is marked as untrusted rather than hidden.
 
 > [!NOTE]
-> The chain shows that a ledger was changed. It cannot stop someone with write access from replacing the whole file. That is what the playbook's `audit.forward` setting is for: it sends every line somewhere the file's owner cannot rewrite.
+> **Three things the chain cannot show, and the page says so rather than implying otherwise.** Records cut from the *end* leave a shorter file that still verifies, because nothing after them remains to break. A file rewritten whole and re-chained by whoever holds the writer verifies too. And the names in a record are what the machine reported, not what an identity provider checked: the approval signature is the one field nobody can forge.
+>
+> All three are what the playbook's `audit.forward` setting is for: it sends every line somewhere the file's owner cannot rewrite. So the answer to *can these records be trusted* reads **Nothing in the file was changed**, which is what a hash chain proves, rather than a broader claim it cannot.
 
 The list on the left is each ledger and its deploys, newest first. Choose one and the right-hand side answers, from its records alone:
 
@@ -263,7 +265,7 @@ The list on the left is each ledger and its deploys, newest first. Choose one an
 - **Whether it worked**, and how the cache warm-up went.
 - **Whether these records can be trusted.**
 
-Under the answers is the flow itself: one line per step, with its time, its detail and the person or host behind it. Anything you might want to paste, like a commit, a checksum, a signing key or a backup id, is listed at the foot with a copy button.
+The order down the page is the deploy's name, the four people, this deploy's own timings, then the flow: one line per step, with its time, its detail and the person or host behind it. The answers come under that, and anything you might want to paste, like a commit, a checksum, a signing key or a backup id, is listed at the foot with a copy button.
 
 ### What a full record looks like
 
@@ -271,7 +273,7 @@ Ordane reads whatever the playbook wrote and never fills a gap in. A deploy that
 
 | Record | Written when | What its absence means |
 |---|---|---|
-| Deploy requested | every deploy, at the start | it cannot be absent |
+| Deploy requested | every deploy, at the start | the records were not opened by a deploy: a warm-up on its own, or a verify of a release this log did not see. They group into one row reading *Records only* |
 | Approval checked | the environment requires a signed approval | approval is off for this environment, or the deploy stopped before the check |
 | Built | the release archive was built and checksummed | the deploy stopped before the build |
 | Cutover began | the web hosts started switching over | the deploy never reached the hosts |
@@ -322,7 +324,9 @@ ordane ledger --repo ~/control-plane
 ordane ledger last --repo ~/control-plane
 ```
 
-The first lists every deploy and exits with status 2 if any chain is broken, so it can run from a scheduled job. The second prints one deploy in full. Pass a release id instead of `last` to choose which.
+The first lists the ten newest deploys per ledger, or `-n` of them, and its exit status is the point: **0** when every chain it read is intact, **2** when one is broken, and **1** when there was nothing to read at all, so a mistyped path fails the job rather than passing it quietly. The second prints one deploy in full. Pass a release id instead of `last` to choose which.
+
+`--ledger PATH` reads a file you name instead of the configured ones, and it works on `ordane app` and `ordane serve` too. `ordane --page ledger` opens the desktop console on this view.
 
 ## Setup
 

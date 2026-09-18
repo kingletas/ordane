@@ -18,6 +18,7 @@ OUTCOME_COLOUR = {
     ledger.SUCCEEDED: GREEN,
     ledger.BUILT_ONLY: GREEN,
     ledger.FINISHED: BLUE,
+    ledger.RECORDS_ONLY: DIM,
     ledger.FAILED: RED,
     ledger.STOPPED: RED,
     ledger.UNFINISHED: YELLOW,
@@ -31,7 +32,6 @@ def books(found: list[ledger.Book], limit: int) -> None:
         print(f"  {DIM}Name one under `ledgers:` in .ordane.yml, or pass --ledger PATH.{OFF}")
         return
     for book in found:
-        chain = book.chain
         heading(f"{book.environment or 'Ledger'}  {DIM}{book.source.path}{OFF}")
         _chain_line(book)
         if book.source.note:
@@ -50,8 +50,6 @@ def books(found: list[ledger.Book], limit: int) -> None:
         hidden = len(book.deployments) - limit
         if hidden > 0:
             print(f"  {DIM}and {plural(hidden, 'older deploy')}{OFF}")
-        if chain.entries and not book.deployments:
-            print(f"  {DIM}No deploys in it yet.{OFF}")
 
 
 def deployment(book: ledger.Book, chosen: ledger.Deployment) -> None:
@@ -99,6 +97,8 @@ def _chain_line(book: ledger.Book) -> None:
     elif chain.state == ledger.INTACT:
         said = f"{plural(len(chain.entries), 'record')}, head {chain.head[:16]}…"
     print(f"  {colour}{word.name}{OFF}  {DIM}{said}{OFF}")
+    if chain.newer_schema:
+        print(f"  {YELLOW}{language.newer_format(chain.newer_schema)}{OFF}")
 
 
 def _timings(book: ledger.Book) -> None:
@@ -115,5 +115,5 @@ def _timings(book: ledger.Book) -> None:
             else f"{ledger.spoken(timing.fastest)} to {ledger.spoken(timing.slowest)}, {over}"
         )
         print(
-            f"  {timing.name:<20} {BOLD}{ledger.spoken(timing.typical):<14}{OFF}{DIM}{spread}{OFF}"
+            f"  {timing.name:<20} {BOLD}{ledger.spoken(timing.typical):<14}{OFF} {DIM}{spread}{OFF}"
         )

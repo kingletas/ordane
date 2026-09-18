@@ -40,7 +40,7 @@ flowchart LR
         presentation["presentation<br/>the words a person reads"]
         core["core<br/>catalog · config · command · doctor"]
         record["record<br/>runner · store · locks · redaction"]
-        insight["insight<br/>health · metrics · stores"]
+        insight["insight<br/>health · metrics · ledger · stores"]
         presentation --> core --> record --> insight
     end
     insight --> desktop["desktop<br/>the GTK 4 window"]

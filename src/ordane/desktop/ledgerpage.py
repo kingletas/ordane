@@ -121,7 +121,8 @@ class LedgerPage(Gtk.Box):
         word = language.chain_state(book.chain.state)
         holder.append(
             w.band(
-                book.environment or "Ledger", link=w.pill(word.name, CHAIN_PILL[book.chain.state])
+                book.environment or "Ledger",
+                link=w.pill(word.name, CHAIN_PILL.get(book.chain.state, "mute")),
             )
         )
         card = w.card()

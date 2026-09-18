@@ -220,6 +220,15 @@ def ledger_outcome(outcome: str) -> Word:
     return LEDGER_OUTCOMES.get(outcome, Word(outcome, ""))
 
 
+def newer_format(version: int) -> str:
+    """What to say about a ledger written in a format newer than this reader knows."""
+    return (
+        f"Written in format {version}, which is newer than this reader knows. "
+        "What it can read is shown; a field it does not know is left out, so take "
+        "an empty one here as unread rather than as absent."
+    )
+
+
 def chain_state(state: str) -> Word:
     return CHAIN_STATES.get(state, Word(state, ""))
 

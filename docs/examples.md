@@ -210,15 +210,15 @@ ordane ledger --repo ~/control-plane
 ordane ledger last --repo ~/control-plane
 ```
 
-The first lists every deploy the playbook recorded, per environment, with who ran it and who approved it, says whether each ledger's chain of hashes still holds, and prints how long deploys here usually take. The second prints one deploy's own spans among everything else. The second prints one deploy in full: who, what went out, whether it is what was approved and built, whether the site went into maintenance, whether a backup was taken, how it ended, and the flow it was all read from. Pass a release id instead of `last` for a particular one.
+The first lists the ten newest deploys per ledger, with who ran each and who approved it, says whether each ledger's chain of hashes still holds, and prints how long deploys here usually take. `-n` changes how many. The second prints one deploy in full, including its own spans: who, what went out, whether it is what was approved and built, whether the site went into maintenance, whether a backup was taken, how it ended, and the flow it was all read from. Pass a release id instead of `last` for a particular one.
 
 Nothing here writes to a ledger. The deploy playbook does, which is why a deploy somebody ran from a terminal appears in it as well as one launched from the console.
 
 ```bash
-ordane ledger --repo ~/control-plane || echo "a ledger has been changed"
+ordane ledger --repo ~/control-plane || echo "the ledger is broken or unreadable"
 ```
 
-It exits 2 when a chain is broken, so it can run from a scheduled job. See [Ledger](user-guide.md#ledger) for what the page shows, [the fields it reads](user-guide.md#the-fields-it-reads) for what a record has to carry, and [`ledgers`](configuration.md#ledgers) for pointing it at a file somewhere unusual.
+Its exit status is **0** when every chain it read is intact, **2** when one is broken, and **1** when it found nothing to read. That last one matters for a scheduled job: a path that is mistyped, moved or renamed fails it rather than passing quietly for ever. See [Ledger](user-guide.md#ledger) for what the page shows, [the fields it reads](user-guide.md#the-fields-it-reads) for what a record has to carry, and [`ledgers`](configuration.md#ledgers) for pointing it at a file somewhere unusual.
 
 ### Ask an environment whether its hosts are there
 

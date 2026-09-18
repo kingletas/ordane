@@ -3,6 +3,10 @@
 <h1><code>{{ deployment.release }}</code></h1>
 <p class="muted">{{ book.environment }} — started {{ deployment.started_at | moment }}. <a href="/ledger">Back to the ledger</a></p>
 
+{% if book.chain.state == 'broken' %}
+<div class="notice danger">This ledger's chain breaks at line {{ book.chain.broken_line }}: {{ book.chain.reason }}. {{ chain_state('broken').meaning }}</div>
+{% endif %}
+
 <h2>How long it took</h2>
 <table>
   <thead><tr><th>Span</th><th>How long</th></tr></thead>
@@ -36,9 +40,16 @@
   {% for answer in answers %}
     <tr>
       <td>{{ answer.question }}</td>
-      <td><strong>{{ answer.answer }}</strong><br><span class="muted small">{{ answer.detail }}</span></td>
+      <td><strong class="level-{{ answer.level }}">{{ answer.answer }}</strong><br><span class="muted small">{{ answer.detail }}</span></td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
+
+{% if exact %}
+<h2>Exact values</h2>
+<ul>
+  {% for value in exact %}<li><code>{{ value }}</code></li>{% endfor %}
+</ul>
+{% endif %}
 {% endblock %}

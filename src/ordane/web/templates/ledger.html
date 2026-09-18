@@ -10,10 +10,12 @@
 {% for book in books %}
 <h2>{{ book.environment }}</h2>
 <p class="muted small"><code>{{ book.source.path }}</code></p>
-<p class="{% if book.chain.state == 'intact' %}ok-text{% else %}muted{% endif %}">
+<p class="{{ chain_class(book.chain.state) }}">
   {{ chain_state(book.chain.state).name }} — {{ chain_state(book.chain.state).meaning }}
   {% if book.chain.state == 'broken' %}It breaks at line {{ book.chain.broken_line }}: {{ book.chain.reason }}{% endif %}
 </p>
+{% if book.chain.newer_schema %}<p class="level-attention">{{ newer_format(book.chain.newer_schema) }}</p>{% endif %}
+{% if book.source.note %}<p class="level-attention">{{ book.source.note }}</p>{% endif %}
 <table>
   <thead><tr><th>How long deploys take here</th><th>Typically</th><th>Over</th></tr></thead>
   <tbody>
