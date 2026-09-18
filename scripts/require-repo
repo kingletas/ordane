@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#
+# Refuses a make target that needs a control plane and was not given one.
+#
+# Usage: scripts/require-repo <target> <repo>
+#
+# Exits 2, which is what the Makefile uses for a target called without its
+# argument, so a missing REPO= is never mistaken for a broken control plane.
+
+set -euo pipefail
+
+target="${1:?a target name is required}"
+repo="${2-}"
+
+if [ -n "$repo" ]; then
+	exit 0
+fi
+
+cat >&2 <<USAGE
+
+  make $target needs a control plane, and there is no default for one.
+
+  Point it at yours:
+
+      make $target REPO=/path/to/your/control-plane
+
+  Or at the example in this checkout, which reaches nothing:
+
+      make $target REPO=examples/control-plane
+
+  To see the console with no argument at all:
+
+      make demo
+
+USAGE
+
+exit 2

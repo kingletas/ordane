@@ -2,6 +2,12 @@
 
 Notable changes, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`make app` no longer fails on a control plane nobody has.** `REPO` defaulted to `~/control-plane`, the placeholder path out of this project's own examples, so the first interesting target in `make` failed with a directory the reader had never named and nothing said which argument was missing. The five targets that need a control plane (`app`, `serve`, `status`, `catalog` and `doctor`) now refuse before anything else runs: they name `REPO=`, offer an example that is really in the checkout, point at `make demo`, which needs no argument at all, and exit 2. `make help` says which targets need one.
+
 ## [0.4.1]: 2026-09-18
 
 All three front ends now say when a release went out more than once, and the demo has one to show.

@@ -8,8 +8,11 @@ SHELL       := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 PREFIX ?= $(HOME)/bin
-REPO   ?= $(HOME)/control-plane
 PORT   ?= 8710
+
+# REPO has no default. A control plane is somewhere only you know, so the five
+# targets that need one refuse rather than guess at a path you never named.
+REPO ?=
 
 .PHONY: help
 help: ## Show this help
@@ -18,6 +21,9 @@ help: ## Show this help
 	@echo
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "    \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@echo
+	@echo "    app, serve, status, catalog and doctor need REPO=/path/to/your/control-plane"
+	@echo "    make demo needs nothing, and drives the example in this checkout"
 	@echo
 
 # --- install ----------------------------------------------------------------
@@ -35,6 +41,11 @@ uninstall: ## Remove the installed copy, the desktop entry and the icon
 	@echo "the run history in ~/.local/state/ordane was not touched"
 
 # --- run --------------------------------------------------------------------
+
+# The five targets below take this as their first prerequisite, so a missing
+# REPO= is refused before the virtualenv or the tool has said anything.
+require-repo-%:
+	@scripts/require-repo $* "$(REPO)"
 
 .PHONY: venv
 venv: ## Build the virtualenv with the system GTK bindings visible
@@ -58,23 +69,23 @@ seed: venv ## Rebuild the demo history, so every measure and objective has a sou
 	@uv run python scripts/seed-demo.py $(DEMO_STATE)
 
 .PHONY: app
-app: venv ## Run the desktop app against REPO=
+app: require-repo-app venv ## Run the desktop app (needs REPO=)
 	@uv run ordane app --repo "$(REPO)"
 
 .PHONY: serve
-serve: ## Run the web console against REPO= on PORT=
+serve: require-repo-serve ## Run the web console on PORT= (needs REPO=)
 	@uv run ordane serve --repo "$(REPO)" --port "$(PORT)"
 
 .PHONY: status
-status: ## Print the dashboard in this terminal for REPO=
+status: require-repo-status ## Print the dashboard in this terminal (needs REPO=)
 	@uv run ordane status --repo "$(REPO)"
 
 .PHONY: catalog
-catalog: ## Print what the console would offer for REPO=, and exit
+catalog: require-repo-catalog ## Print what the console would offer, and exit (needs REPO=)
 	@uv run ordane catalog --repo "$(REPO)"
 
 .PHONY: doctor
-doctor: ## Check REPO= and say what to do about anything found
+doctor: require-repo-doctor ## Check the control plane and report anything wrong (needs REPO=)
 	@uv run ordane doctor --repo "$(REPO)"
 
 # --- packaging --------------------------------------------------------------
