@@ -62,9 +62,7 @@ class ActiveRun:
         self._on_finish = on_finish or (lambda: None)
         # Set once the finished run is in the store. `finished` waits on this
         # rather than on the run's state, because the state flips inside
-        # `_conclude` and the record is appended a few lines later: anything
-        # that polled the state and then read the store saw the run as it was
-        # before it ended.
+        # `_conclude` and the record is appended a few lines later.
         self._recorded = threading.Event()
         self._queue: Queue[str | None] = Queue()
         self._buffer: list[str] = []
@@ -81,7 +79,12 @@ class ActiveRun:
 
     @property
     def finished(self) -> bool:
-        """True once the run has ended *and* its record can be read back."""
+        """True once the run has ended and the attempt to store its record is over.
+
+        Not the same as the record being there. A disk that will not take it
+        leaves the run finished and unstored, because a run nothing can ever
+        report as finished is worse than one whose record is missing.
+        """
         return self._recorded.is_set()
 
     def buffered(self) -> str:
@@ -98,7 +101,24 @@ class ActiveRun:
         except (ProcessLookupError, PermissionError):
             return False
         self.run.state = "cancelled"
+        # The escalation cannot be left to `_conclude`, which runs only once the
+        # output ends: a process that ignores the signal holds the terminal open
+        # for as long as it likes, and everything waiting on this run waits with
+        # it. A cancel is bounded here or it is not bounded anywhere.
+        insist = threading.Timer(TERM_GRACE_SECONDS, self._insist)
+        insist.daemon = True
+        insist.start()
         return True
+
+    def _insist(self) -> None:
+        """Kills a cancelled process group that did not stop when it was asked."""
+        process = self._process
+        if process is None or process.poll() is not None:
+            return
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
 
     def stream(self) -> Iterator[str]:
         """Yields output already seen, then each new chunk until the run ends."""
@@ -225,9 +245,15 @@ class ActiveRun:
         try:
             self._conclude(started)
         finally:
-            self._recorded.set()
-            self._on_finish()
-            self._queue.put(None)
+            # The lock goes back before the run says it is finished. The other
+            # way round, anything that waits for `finished` and starts the next
+            # run on the same environment is refused by a lock this one still
+            # holds.
+            try:
+                self._on_finish()
+            finally:
+                self._recorded.set()
+                self._queue.put(None)
 
     def _conclude(self, started: float) -> None:
         process = self._process

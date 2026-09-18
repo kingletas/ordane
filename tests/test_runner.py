@@ -97,3 +97,52 @@ def test_a_finished_run_can_be_read_back_the_moment_it_says_it_is_finished(tmp_p
             f"attempt {attempt}: finished, and the record still says running"
         )
         assert record.exit_code == 0, f"attempt {attempt}: exit code {record.exit_code!r}"
+
+
+def test_a_cancel_does_not_wait_on_the_child_s_good_manners(tmp_path, monkeypatch):
+    """A process that ignores the signal used to hold everything waiting on the run.
+
+    The kill was reached only from `_conclude`, which runs once the output ends,
+    so a child that kept the terminal open kept `finished` false and left the
+    environment locked for as long as it chose.
+    """
+    import time
+
+    from ordane.core.command import Command
+    from ordane.record.runner import Runner
+
+    monkeypatch.setattr(runner, "TERM_GRACE_SECONDS", 1)
+
+    repo = tmp_path / "plane"
+    repo.mkdir()
+    store = RunStore(tmp_path / "state")
+    store.prepare()
+    driver = Runner(store, repo, tmp_path / "state" / "events.jsonl")
+
+    # Ignores the interrupt and holds the terminal open, which is what an
+    # Ansible run trapping SIGINT to finish its handlers looks like. It says so
+    # first: signalled before the handler is installed, it dies of the signal
+    # and proves nothing.
+    stubborn = (
+        "import signal, sys, time; signal.signal(signal.SIGINT, signal.SIG_IGN); "
+        "print('holding', flush=True); time.sleep(120)"
+    )
+    active = driver.start(
+        kind="target",
+        name="stubborn",
+        environment="local",
+        params={},
+        command=Command.build(["python3", "-c", stubborn]),
+    )
+    deadline = time.monotonic() + 30
+    while "holding" not in active.buffered() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert "holding" in active.buffered(), "the run never reached the point of ignoring signals"
+
+    assert active.cancel(), "the run was not there to cancel"
+    deadline = time.monotonic() + 30
+    while not active.finished and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert active.finished, "a cancelled run that ignored the signal never ended"
+    assert driver.busy_with("local") is None, "the environment is still locked"
