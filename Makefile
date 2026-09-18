@@ -126,7 +126,6 @@ metadata: ## Validate the desktop entry and its icon
 
 # `check` builds the virtualenv first because `uv run` on its own cannot see the
 # system GTK bindings, and every desktop test skips itself when it cannot import
-# them. On this machine .venv already existed and the skip never showed.
 .PHONY: check
 check: venv lint test metadata ## Everything a commit has to pass
 	@echo

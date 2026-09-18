@@ -76,6 +76,36 @@ def test_ci_proves_both_packages_install():
         assert proof in body, f"CI no longer proves a package runs: {proof}"
 
 
+def test_ci_insists_the_desktop_really_ran():
+    """Every desktop test skips itself when it cannot reach a display.
+
+    That skip is what CI is for: the guard asserting the suite really ran is
+    itself armed by `ORDANE_REQUIRE_GTK`, so with the variable gone the whole
+    desktop suite goes quiet and every test in it still reports green. The
+    backend matters as much: given only a display, GTK tries Wayland first and
+    reaches nothing.
+    """
+    body = WORKFLOW.read_text(encoding="utf-8")
+    for proof in ("ORDANE_REQUIRE_GTK", "xvfb-run", "GDK_BACKEND"):
+        assert proof in body, (
+            f"CI no longer sets {proof}, so the desktop suite can skip itself and stay green"
+        )
+
+
+def test_ci_proves_the_wheel_carries_what_the_app_loads():
+    """A wheel that starts is not a wheel that is whole.
+
+    It would not build at all until this was gated, and the job that builds one
+    runs commands that touch no template, font or stylesheet. An exclude rule
+    dropping any of those leaves the job green and the window unstyled.
+    """
+    body = WORKFLOW.read_text(encoding="utf-8")
+    assert "uv build --wheel" in body, "CI no longer builds a wheel"
+    assert "ordane.desktop.assets" in body or "ordane.web" in body, (
+        "the wheel job never loads a packaged file, so a missing one would not show"
+    )
+
+
 def test_the_scan_finds_something():
     """Both checks above are vacuous if nothing is parsed out of the workflow."""
     called = make_calls(workflow_steps())

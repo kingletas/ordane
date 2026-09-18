@@ -5,8 +5,8 @@
 #
 # `make smoke` is not here. It drives the real window and was measured flaky on a
 # runner, and a gate that fails at random gets re-run rather than read. `make ci`
-# runs it before a push. The desktop *unit* tests do run here, which they did not
-# until the bindings were installed below.
+# runs it before a push. The desktop *unit* tests do run here, which is what the
+# bindings installed below are for.
 #
 # Actions are pinned to a commit SHA, because a tag can be moved by whoever owns
 # the action.
@@ -46,7 +46,7 @@ jobs:
       #
       # The GTK bindings are here because every desktop test opens with
       # `pytest.importorskip("gi")`. Without them the largest part of this
-      # repository was checked by nothing and the run still went green.
+      # repository is checked by nothing and the run still goes green.
       - name: Install the desktop entry validator and the GTK bindings
         run: |
           sudo apt-get update
@@ -92,10 +92,10 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
-      # The wheel would not build at all until 2026-09-17, and nothing noticed
-      # because nothing on any gate built one. The terminal front end is the
-      # half a CI job or another developer installs, and this is how they get
-      # it. The window needs system GTK and is not installed this way.
+      # Nothing else on any gate builds a wheel, so one that will not build goes
+      # unnoticed. The terminal front end is the half a CI job or another
+      # developer installs, and this is how they get it. The window needs system
+      # GTK and is not installed this way.
       - name: Build the wheel, install it somewhere clean, and run it
         run: |
           uv build --wheel
@@ -104,6 +104,19 @@ jobs:
           declared="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/ordane/__init__.py)"
           /tmp/from-wheel/bin/ordane --version | grep -Fx "ordane ${declared}"
           /tmp/from-wheel/bin/ordane status --repo examples/control-plane
+          # Neither command above opens a template, a font or a stylesheet, so
+          # a packaging rule that dropped one would leave this job green and the
+          # window unstyled.
+          /tmp/from-wheel/bin/python - <<'PROOF'
+          from importlib import resources
+          assets = resources.files("ordane.desktop.assets")
+          assert (assets / "app.css").is_file(), "the wheel has no stylesheet"
+          assert any(f.name.endswith(".ttf") for f in (assets / "fonts").iterdir()), "no fonts"
+          web = resources.files("ordane.web")
+          assert (web / "templates" / "base.html").is_file(), "the wheel has no templates"
+          assert (web / "static" / "app.css").is_file(), "the wheel has no browser stylesheet"
+          print("the wheel carries what the app loads")
+          PROOF
 
   flatpak:
     name: the flatpak installs and runs

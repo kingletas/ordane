@@ -6,7 +6,10 @@
 make check
 ```
 
-Ruff and the unit suite. A commit has to pass it, and CI runs the same thing on every push and pull request.
+Ruff and the unit suite. A commit has to pass it, and CI runs the same thing on every push and pull request, under a virtual display.
+
+> [!IMPORTANT]
+> **On a machine with no GTK, every desktop test skips itself and `make check` still goes green.** That is most of the suite passing without running. CI sets `ORDANE_REQUIRE_GTK=1`, which turns that skip into a failure, and `GDK_BACKEND=x11` beside `xvfb-run`, because given only a display GTK still tries Wayland first and reaches nothing. Set the same variable locally when you want to be sure you ran what CI runs.
 
 ```bash
 make smoke
@@ -15,13 +18,13 @@ make smoke
 This drives the real window against the example control plane and writes a PNG of each view into `docs/images/`. Run it for anything that touches the interface, and then actually look at the pictures.
 
 > [!NOTE]
-> `make smoke` is not part of `make check`, and it is not a CI gate either. It opens a real window and drives it, so its checks are timing against a live GUI on a machine whose speed and font this repository does not control. CI runs it on every push and uploads the screenshots, but a red cross there means look at the pictures, not stop.
+> `make smoke` is not part of `make check`, and it is not a CI gate either. It opens a real window and drives it, so its checks are timing against a live GUI on a machine whose speed and font this repository does not control. It is deliberately not a CI job, so a red cross there is not a thing you will see: run it here and look at the pictures.
 >
 > That does not make it optional. Almost every interface defect in this project was found by opening the window and looking, and several times the unit suite happily exercised a component while the route through it was broken.
 
 ## Where a change goes
 
-Words a person reads do not belong in a front end. A danger level, a run state, the name of a measure: put those in `src/ordane/language.py` once, and all three front ends read them from there. A string typed straight into a template is a string the other two will eventually contradict.
+Words a person reads do not belong in a front end. A danger level, a run state, the name of a measure: put those in `src/ordane/presentation/language.py` once, and all three front ends read them from there. A string typed straight into a template is a string the other two will eventually contradict.
 
 Decisions do not belong in a front end either. If the desktop app and the terminal would both have to answer the same question, the answer goes above the line. See [docs/architecture.md](docs/architecture.md).
 
