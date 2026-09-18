@@ -25,7 +25,14 @@ def test_the_bindings_every_other_desktop_test_skips_without():
 
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
-    from gi.repository import Adw, Gtk
+    from gi.repository import Adw, Gdk, Gtk
 
     Adw.init()
+    # A display, not only the bindings. `Adw.init()` with nothing to connect to
+    # returns without complaining and leaves GTK unusable, so the next widget
+    # built takes the whole run down with a segfault and no message. Xvfb is
+    # what CI gives it. Say so here rather than let it crash somewhere else.
+    assert Gdk.Display.get_default() is not None, (
+        "GTK has no display. Run the suite under `xvfb-run -a`, which is what CI does"
+    )
     assert Gtk.Label(label="drawn").get_text() == "drawn", "GTK is here and cannot build a label"
