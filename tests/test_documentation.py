@@ -100,10 +100,14 @@ def test_a_run_carries_no_field_the_interface_prints_raw():
 def test_the_changelog_and_the_package_agree_on_the_version():
     from ordane import __version__
 
-    heading = re.search(r"^## \[([^\]]+)\]", (ROOT / "CHANGELOG.md").read_text(), re.M)
-    assert heading is not None, "the changelog has no version heading"
-    assert heading.group(1) == __version__, (
-        f"the changelog's newest entry is {heading.group(1)}, the package says {__version__}"
+    # `Unreleased` is part of the format this changelog says it follows, and it
+    # carries what is on main and not yet tagged. The newest *version* is what
+    # has to match the package, since that is what a release publishes.
+    headings = re.findall(r"^## \[([^\]]+)\]", (ROOT / "CHANGELOG.md").read_text(), re.M)
+    versions = [one for one in headings if one.lower() != "unreleased"]
+    assert versions, "the changelog has no version heading"
+    assert versions[0] == __version__, (
+        f"the changelog's newest release is {versions[0]}, the package says {__version__}"
     )
 
 
@@ -232,13 +236,7 @@ def test_every_ledger_identifier_a_person_sees_has_a_word():
     from ordane.desktop import pills
     from ordane.insight import ledger
 
-    states = (
-        ledger.INTACT,
-        ledger.BROKEN,
-        ledger.EMPTY,
-        ledger.MISSING,
-        ledger.UNREADABLE,
-    )
+    states = ledger.CHAIN_STATES
     outcomes = (
         ledger.SUCCEEDED,
         ledger.BUILT_ONLY,

@@ -52,10 +52,14 @@ def books(found: list[ledger.Book], limit: int) -> None:
             print(f"  {DIM}and {plural(hidden, 'older deploy')}{OFF}")
 
 
-def deployment(book: ledger.Book, chosen: ledger.Deployment) -> None:
+def deployment(book: ledger.Book, chosen: ledger.Deployment, others=()) -> None:
     """One deploy: the answers a reviewer asks for, then the flow that backs them."""
     print(f"\n{BOLD}{chosen.release or 'Deploy'}{OFF} {DIM}({book.environment}){OFF}")
     _chain_line(book)
+    if others:
+        print(f"  {YELLOW}Deployed {len(others) + 1} times.{OFF} The others:")
+        for one in others:
+            print(f"    {DIM}{moment(one.started_at):<20}{OFF} ordane ledger {one.ref}")
 
     heading("What the records say")
     for answer in ledger.answers(chosen, book.chain):

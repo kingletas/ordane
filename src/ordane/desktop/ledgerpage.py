@@ -299,11 +299,10 @@ def _people(deployment: ledger.Deployment) -> Gtk.Widget:
     """The who, before anything else: each person or host that stands behind the deploy."""
     approval = deployment.approval
     verified = deployment.verified
-    build = deployment.build
     figures = [
         (deployment.deployer.name, "requested it"),
         (approval.signer if approval else "Nobody on record", "approved it"),
-        (str(build.get("builder")) if build and build.get("builder") else "Not built", "built it"),
+        (deployment.builder or "Not built", "built it"),
         (
             verified.actor.name if verified is not None and verified.actor.known else "Not yet",
             "verified it afterwards",
@@ -339,8 +338,9 @@ def _headline(timing: ledger.Timing) -> str:
 def _spans(deployment: ledger.Deployment) -> Gtk.Widget | None:
     """This deploy's own timings, the one customers feel first."""
     spans = deployment.spans
-    order = [ledger.HEADLINE, "cutover", "build", "total", "warmup", "to_verify"]
-    measured = [(key, spans[key]) for key in order if key in spans]
+    # The engine decides the order, headline first. A second copy of it here is
+    # a list that can disagree with the one the browser and the terminal use.
+    measured = [(key, spans[key]) for key in ledger.SPAN_RECORDS if key in spans]
     if not measured:
         return None
     strip = w.row(0)

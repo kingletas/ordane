@@ -34,4 +34,5 @@ CHAIN_PILL = {
     ledger.EMPTY: "mute",
     ledger.MISSING: "mute",
     ledger.UNREADABLE: "warn",
+    ledger.FRAGMENT: "wait",
 }

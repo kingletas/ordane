@@ -35,6 +35,13 @@ BROKEN = "broken"
 EMPTY = "empty"
 MISSING = "missing"
 UNREADABLE = "unreadable"
+# Records cut out of a ledger: they link to each other and the first links to
+# something that is not in the file. An evidence bundle is exactly this shape.
+FRAGMENT = "fragment"
+
+# Every state a chain can be in. Walked by the checks that ask whether each one
+# has a word and a way of being drawn, so a hand-kept list cannot go stale.
+CHAIN_STATES = (INTACT, BROKEN, EMPTY, MISSING, UNREADABLE, FRAGMENT)
 
 SUCCEEDED = "succeeded"
 BUILT_ONLY = "built-only"
@@ -193,6 +200,17 @@ class Deployment:
         return all(e.trusted for e in self.entries)
 
     @property
+    def ref(self) -> str:
+        """What addresses this attempt and no other.
+
+        A release deployed twice leaves two attempts under one name, and asking
+        for the name alone reaches the newer one for ever. Every record carries
+        its line number in the file, so the first one's names the attempt.
+        """
+        seq = self.entries[0].seq if self.entries else 0
+        return f"{self.release}@{seq}" if self.release else f"@{seq}"
+
+    @property
     def start(self) -> Entry:
         return self.first("deploy.started") or self.entries[0]
 
@@ -240,6 +258,12 @@ class Deployment:
     def artefact(self) -> str:
         build = self.build
         return str(build.get("artefact_sha256")) if build else ""
+
+    @property
+    def builder(self) -> str:
+        """The host that built it, or nothing where no build was recorded."""
+        build = self.build
+        return str(build.get("builder") or "") if build else ""
 
     @property
     def cutover_artefact(self) -> str:
@@ -394,13 +418,26 @@ def read(path: Path, environment: str = "") -> Chain:
     entries: list[Entry] = []
     previous = GENESIS
     broken_line, reason = 0, ""
+    # An excerpt keeps the numbers it had in the file it came from, so its first
+    # record is rarely line 1 and its `prev_hash` names a record that is not
+    # here. That is a fragment, not a break, and reading it as one told an
+    # auditor their own copy had been tampered with.
+    first, _ = _parse(lines[0])
+    offset = 0
+    fragment = False
+    if isinstance(first.get("seq"), int) and first.get("prev_hash") != GENESIS:
+        offset = first["seq"] - 1
+        fragment = offset > 0
+        if fragment:
+            previous = str(first.get("prev_hash") or "")
     for number, line in enumerate(lines, 1):
         record, problem = _parse(line)
         if not broken_line and problem:
             broken_line, reason = number, problem
         elif not broken_line:
-            if record.get("seq") != number:
-                broken_line, reason = number, f"seq is {record.get('seq')!r}, expected {number}"
+            if record.get("seq") != number + offset:
+                expected = number + offset
+                broken_line, reason = number, f"seq is {record.get('seq')!r}, expected {expected}"
             elif record.get("prev_hash") != previous:
                 broken_line, reason = number, "prev_hash does not match the record before it"
             elif record.get("hash") != record_hash(record):
@@ -412,6 +449,14 @@ def read(path: Path, environment: str = "") -> Chain:
 
     if not name and entries:
         name = entries[0].environment
+    if fragment and not broken_line:
+        return Chain(
+            path=path,
+            environment=name,
+            state=FRAGMENT,
+            entries=entries,
+            head=previous,
+        )
     if broken_line:
         return Chain(
             path=path,
@@ -759,9 +804,8 @@ def _what_went_out(d: Deployment) -> Answer:
     detail = [f"from {branch}" if branch else "", f"release {d.release}"]
     if d.artefact:
         detail.append(f"archive SHA-256 {_short(d.artefact, 16)}…")
-    builder = d.build.get("builder") if d.build else ""
-    if builder:
-        detail.append(f"built on {builder}")
+    if d.builder:
+        detail.append(f"built on {d.builder}")
     return Answer(
         "What went out?",
         f"Commit {_short(commit)}",
@@ -937,6 +981,17 @@ def _trust(d: Deployment, chain: Chain) -> Answer:
             f"They sit before the break at line {chain.broken_line}, so they link to the start.",
             language.ATTENTION,
         )
+    if chain.state == FRAGMENT:
+        return Answer(
+            question,
+            "Not on their own",
+            f"These {len(chain.entries)} records link to each other, and the first links to a "
+            "record that is not in this file. That is what an excerpt looks like and also what "
+            "a selective copy looks like, and nothing here can tell the two apart. Check it "
+            f"against the ledger it was cut from. Head {_short(chain.head, 16)}…",
+            language.ATTENTION,
+            exact=(chain.head,),
+        )
     return Answer(
         question,
         "Nothing in the file was changed",
@@ -979,17 +1034,41 @@ def _newest(book: Book) -> str:
     return book.deployments[0].started_at if book.deployments else ""
 
 
-def find(books: list[Book], release: str) -> tuple[Book, Deployment] | None:
-    """The newest deploy of a release, or the newest deploy anywhere for `last`."""
+def find(books: list[Book], wanted: str) -> tuple[Book, Deployment] | None:
+    """One deploy: by its own reference, by release, or the newest anywhere for `last`.
+
+    A bare release name reaches the newest attempt under it, which is what
+    somebody typing one means. `attempts` is how the front ends offer the
+    others, and a `ref` reaches exactly one of them.
+    """
+    exact = [
+        (book, deployment)
+        for book in books
+        for deployment in book.deployments
+        if deployment.ref == wanted
+    ]
+    if exact:
+        return exact[0]
     candidates = [
         (book, deployment)
         for book in books
         for deployment in book.deployments
-        if release == "last" or deployment.release == release
+        if wanted == "last" or deployment.release == wanted
     ]
     if not candidates:
         return None
     return max(candidates, key=lambda pair: pair[1].started_at)
+
+
+def attempts(books: list[Book], release: str) -> list[tuple[Book, Deployment]]:
+    """Every attempt at one release, oldest first. More than one means it was retried."""
+    found = [
+        (book, deployment)
+        for book in books
+        for deployment in book.deployments
+        if release and deployment.release == release
+    ]
+    return sorted(found, key=lambda pair: pair[1].started_at)
 
 
 @dataclass(frozen=True)

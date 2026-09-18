@@ -73,6 +73,24 @@ def broken(tmp_path) -> ledger.Book:
     return ledger.gather(a_plane(tmp_path), [], [tampered(tmp_path)])[0]
 
 
+def a_client(tmp_path: Path, path: Path) -> TestClient:
+    """The browser console, against one ledger."""
+    repo = a_plane(tmp_path)
+    return TestClient(
+        create_app(
+            Settings(
+                repo=repo,
+                port=8710,
+                state_dir=tmp_path / "state",
+                history_path=tmp_path / "none.csv",
+                events_path=tmp_path / "none.jsonl",
+                ledgers=(path,),
+            )
+        ),
+        headers={"Host": "127.0.0.1:8710"},
+    )
+
+
 def web_pages(tmp_path: Path, path: Path) -> tuple[str, str]:
     """The listing and the newest deploy, as the browser renders them."""
     repo = a_plane(tmp_path)
@@ -328,3 +346,87 @@ def test_a_newer_format_is_named_in_every_front_end(tmp_path, capsys):
     assert said in listing, "the terminal says nothing about a newer format"
     assert said in web_listing, "the browser says nothing about a newer format"
     assert said in drawn, "the desktop says nothing about a newer format"
+
+
+def records_with_no_deploy(tmp_path: Path) -> Path:
+    """What a warm-up suite leaves: records that belong to no deploy at all."""
+    previous, rows = ledger.GENESIS, []
+    for seq in range(1, 4):
+        record = {
+            "schema": ledger.SCHEMA,
+            "seq": seq,
+            "prev_hash": previous,
+            "recorded_at": f"2026-09-01T10:0{seq}:00Z",
+            "event": "warmup.completed",
+            "env_name": "staging",
+            "release": "",
+            "actor": {"git_email": "alex@example.com"},
+            "requested": 10,
+            "ok": 10,
+        }
+        record["hash"] = ledger.record_hash(record)
+        previous = record["hash"]
+        rows.append(json.dumps(record, sort_keys=True))
+    path = tmp_path / "staging.audit.jsonl"
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return path
+
+
+def test_a_group_with_no_release_is_not_a_link_to_nowhere(tmp_path):
+    """`/ledger/` with an empty name is a link that goes back to the listing."""
+    path = records_with_no_deploy(tmp_path)
+    book = ledger.gather(a_plane(tmp_path), [], [path])[0]
+    assert book.deployments[0].release == "", "this fixture is supposed to have no release"
+
+    listing, _ = web_pages(tmp_path, path)
+    assert 'href="/ledger/"' not in listing, "the browser drew a link to nowhere"
+    assert "no release recorded" in listing
+
+
+def test_the_span_customers_feel_leads_in_every_front_end(book, tmp_path, capsys):
+    """`HEADLINE` was an ordering directive the engine declared and the browser ignored."""
+    timings = [t for t in book.timings]
+    assert timings[0].key == ledger.HEADLINE, "the engine no longer leads with the headline"
+
+    listing, deploy = terminal_pages(book, capsys)
+    web_listing, web_deploy = web_pages(tmp_path, FIXTURE)
+    drawn = desktop_text(book)
+
+    leading = language.span_name(ledger.HEADLINE)
+    for page in (listing, web_listing, drawn):
+        assert leading in page, f"the leading span is missing from {page[:20]!r}"
+    # And the browser says which one it is rather than printing six the same.
+    assert f'class="level-attention">{leading}' in web_listing
+
+
+def a_release_deployed_twice(tmp_path: Path) -> Path:
+    """The same release id, deployed, then deployed again."""
+    records = [json.loads(line) for line in FIXTURE.read_text(encoding="utf-8").splitlines()]
+    previous, rows = ledger.GENESIS, []
+    for record in [*records, *records]:
+        rebuilt = {**record, "prev_hash": previous}
+        rebuilt.pop("hash", None)
+        rebuilt["seq"] = len(rows) + 1
+        rebuilt["hash"] = ledger.record_hash(rebuilt)
+        previous = rebuilt["hash"]
+        rows.append(json.dumps(rebuilt, sort_keys=True))
+    path = tmp_path / "staging.audit.jsonl"
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return path
+
+
+def test_the_browser_can_reach_the_earlier_attempt(tmp_path):
+    """Every row linked to the release, so the earlier attempt had no address at all."""
+    path = a_release_deployed_twice(tmp_path)
+    books = ledger.gather(a_plane(tmp_path), [], [path])
+    older, newer = sorted(books[0].deployments, key=lambda d: d.started_at)
+    assert older.release == newer.release, "this fixture is supposed to be one release twice"
+
+    listing, _ = web_pages(tmp_path, path)
+    assert f'href="/ledger/{older.ref}"' in listing, "the earlier attempt is not linked"
+    assert f'href="/ledger/{newer.ref}"' in listing
+
+    client = a_client(tmp_path, path)
+    page = client.get(f"/ledger/{older.ref}").text
+    assert "deployed 2 times" in page.lower(), "the page does not say it was retried"
+    assert f'href="/ledger/{newer.ref}"' in page, "the other attempt is not offered"

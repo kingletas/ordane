@@ -205,6 +205,11 @@ CHAIN_STATES = {
     "empty": Word("No deploys yet", "The ledger exists and holds no records."),
     "missing": Word("No ledger here", "Nothing has been written to this path yet."),
     "unreadable": Word("Cannot be read", "The file is there but could not be read."),
+    "fragment": Word(
+        "An excerpt",
+        "These records link to each other, and the first links to one that is not in "
+        "this file. Read it against the ledger it was cut from.",
+    ),
 }
 
 

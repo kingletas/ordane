@@ -247,7 +247,7 @@ At the foot is what these numbers do not cover, in the copy rather than in fine 
 
 The Ledger reads the deploy playbook's own record of what it did: an append-only file with one line per step of every deploy. Ordane does not write to it. The playbook does, whether the deploy was launched from here or typed into a terminal, so this is the one place that shows deploys this console never saw.
 
-Each line carries a SHA-256 hash of the line before it. Change a line, delete one from the middle or swap two, and every hash after that point stops matching. Ordane checks the whole chain every time it reads the file, using the same rules as the tool that wrote it, and a pill beside each ledger says which of five states it is in: **Chain intact**, **Chain broken**, **No deploys yet**, **No ledger here**, or **Cannot be read**. A broken chain names the line and the reason, and every deploy recorded from that line on is marked as untrusted rather than hidden.
+Each line carries a SHA-256 hash of the line before it. Change a line, delete one from the middle or swap two, and every hash after that point stops matching. Ordane checks the whole chain every time it reads the file, using the same rules as the tool that wrote it, and a pill beside each ledger says which of six states it is in: **Chain intact**, **Chain broken**, **An excerpt**, **No deploys yet**, **No ledger here**, or **Cannot be read**. A broken chain names the line and the reason, and every deploy recorded from that line on is marked as untrusted rather than hidden.
 
 > [!NOTE]
 > **Three things the chain cannot show, and the page says so rather than implying otherwise.** Records cut from the *end* leave a shorter file that still verifies, because nothing after them remains to break. A file rewritten whole and re-chained by whoever holds the writer verifies too. And the names in a record are what the machine reported, not what an identity provider checked. The playbook verifies an approval signature at deploy time and records what it found; this is not where that check is re-run.
@@ -330,7 +330,7 @@ The first lists the ten newest deploys per ledger, or `-n` of them, and its exit
 `--ledger PATH` reads a file you name instead of the configured ones, and it works on `ordane app` and `ordane serve` too.
 
 > [!WARNING]
-> An evidence bundle is not a ledger and does not read as one. The playbook's `make evidence` writes one deploy's records with the `seq` and `prev_hash` they had in the file they came from, so the chain in it starts in the middle: Ordane reports it as broken at line 1, and it is not. Read a bundle against the ledger it was cut from. `ordane --page ledger` opens the desktop console on this view.
+> An evidence bundle is an excerpt, and reads as one. The playbook's `make evidence` writes one deploy's records with the `seq` and `prev_hash` they had in the file they came from, so the chain in it starts partway through another. Ordane calls that **An excerpt**: the records link to each other, and the first links to a record that is not in the file. That is also what a selective copy looks like, and nothing in the file can tell the two apart, so read a bundle against the ledger it was cut from. `ordane --page ledger` opens the desktop console on this view.
 
 ## Setup
 

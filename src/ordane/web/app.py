@@ -66,6 +66,7 @@ def create_app(settings: Settings) -> FastAPI:
     templates.env.globals["span_name"] = language.span_name
     templates.env.globals["span_meaning"] = language.span_meaning
     templates.env.globals["spoken"] = ledger_module.spoken
+    templates.env.globals["headline"] = ledger_module.HEADLINE
     templates.env.globals["newer_format"] = language.newer_format
     templates.env.globals["chain_class"] = _chain_class
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
@@ -256,6 +257,7 @@ def create_app(settings: Settings) -> FastAPI:
             return page(request, "error.html", config=cfg, message=f"no deploy of {release!r}")
         book, deployment = found
         answers = ledger_module.answers(deployment, book.chain)
+        tries = ledger_module.attempts(_books(cfg), deployment.release)
         return page(
             request,
             "deploy.html",
@@ -265,6 +267,8 @@ def create_app(settings: Settings) -> FastAPI:
             steps=ledger_module.steps(deployment),
             answers=answers,
             exact=list(dict.fromkeys(value for one in answers for value in one.exact)),
+            # Only worth showing where a release was deployed more than once.
+            others=[one for _, one in tries if one.ref != deployment.ref],
         )
 
     @app.get("/runs", response_class=HTMLResponse)

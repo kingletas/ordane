@@ -2,6 +2,20 @@
 
 Notable changes, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **An excerpt of a ledger reads as an excerpt.** The playbook's `make evidence` writes one deploy's records with the numbers they had in the file they came from, so the chain begins partway through another one. That was reported as broken at line 1, which is a tamper tool calling the auditor's own copy a fake. It is now a state of its own, and the trust answer says the records link to each other and the first links to one that is not in the file.
+- **A release deployed twice can be told apart.** Every attempt carries a reference of its own, the browser links each row to it, and the terminal names the other attempts and how to reach them. Asking for a release by name still reaches the newest, which is what somebody typing one means.
+- The span customers feel leads in all three front ends, and the browser marks it rather than printing six the same. The window no longer keeps its own copy of the order the engine decides.
+- `ORDANE_PLAYBOOK` points the suite at a playbook checkout, so the reader is checked against the writer as it is today rather than only against a captured file.
+
+### Fixed
+
+- A group of records belonging to no deploy drew a link to nowhere in the browser.
+- The window read a raw record field for the host that built a release, where the other two front ends use the deploy's own property.
+
 ## [0.3.0]: 2026-09-17
 
 A deploy playbook that keeps its own record of what it did now has a place to be read: who deployed, who approved, what went out, and whether that record has been changed since.

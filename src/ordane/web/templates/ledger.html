@@ -21,7 +21,7 @@
   <tbody>
   {% for timing in book.timings %}
     <tr>
-      <td title="{{ timing.meaning }}">{{ timing.name }}</td>
+      <td title="{{ timing.meaning }}">{% if timing.key == headline %}<strong class="level-attention">{{ timing.name }}</strong>{% else %}{{ timing.name }}{% endif %}</td>
       <td>{% if timing.measured %}{{ spoken(timing.typical) }}{% else %}<span class="muted">not measured</span>{% endif %}</td>
       <td class="muted">{% if timing.measured %}{{ spoken(timing.fastest) }} to {{ spoken(timing.slowest) }}, over {{ timing.samples }}{% else %}{{ timing.blocked }}{% endif %}</td>
     </tr>
@@ -35,7 +35,9 @@
   {% for deployment in book.deployments %}
     <tr>
       <td>{{ deployment.started_at | moment }}</td>
-      <td><a href="/ledger/{{ deployment.release }}"><code>{{ deployment.release }}</code></a></td>
+      {# Records with no `deploy.started` behind them belong to no deploy, so
+         they have no release to name and nowhere to link to. #}
+      <td>{% if deployment.release %}<a href="/ledger/{{ deployment.ref }}"><code>{{ deployment.release }}</code></a>{% else %}<span class="muted">no release recorded</span>{% endif %}</td>
       <td>{{ ledger_outcome(deployment.outcome).name }}{% if not deployment.trusted %} <span class="muted">(after the break)</span>{% endif %}</td>
       <td>{{ deployment.deployer.name }}</td>
       <td>{% if deployment.approval %}{{ deployment.approval.signer }}{% else %}<span class="muted">no approval</span>{% endif %}</td>

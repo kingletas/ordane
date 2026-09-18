@@ -6,7 +6,10 @@ invented names, so the reader is held to the writer rather than to itself.
 
 from __future__ import annotations
 
+import importlib.machinery
+import importlib.util
 import json
+import os
 import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -605,6 +608,116 @@ def test_a_deploy_after_loose_records_is_still_its_own_deploy(tmp_path):
     assert (newest.release, newest.outcome) == ("r1", ledger.SUCCEEDED)
     assert older.outcome == ledger.RECORDS_ONLY
     assert len(newest.entries) == 6
+
+
+# --- the writer, where there is one to ask ---
+
+
+def test_the_writer_still_hashes_a_record_the_way_this_reader_does(tmp_path):
+    """The fixture is frozen. This asks the writer as it is today.
+
+    `tests/fixtures/ledger/README.md` says why: a change to the playbook's
+    canonicalisation makes every production ledger read as broken while the
+    captured fixture keeps passing, because it was written under the old rule.
+
+    Skipped where the playbook is not checked out, which is everywhere except a
+    machine that has both.
+    """
+    where = os.environ.get("ORDANE_PLAYBOOK")
+    if not where:
+        pytest.skip("set ORDANE_PLAYBOOK to a playbook checkout to check against the writer")
+    tool = Path(where) / "bin" / "audit-log"
+    if not tool.exists():
+        pytest.fail(f"ORDANE_PLAYBOOK is set and {tool} is not there")
+
+    # It has no `.py`, so it is loaded by path. Its entry point is guarded, so
+    # importing it runs nothing.
+    loader = importlib.machinery.SourceFileLoader("audit_log_writer", str(tool))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    writer = importlib.util.module_from_spec(spec)
+    loader.exec_module(writer)
+
+    record = lines_of(FIXTURE)[0]
+    assert writer.record_hash(record) == ledger.record_hash(record), (
+        "the writer and this reader no longer agree on what a record hashes to"
+    )
+
+
+# --- an excerpt of a ledger, which is what an evidence bundle is ---
+
+
+def an_excerpt(tmp_path, keep: slice):
+    """Records lifted out of a ledger with the `seq` and `prev_hash` they had there."""
+    whole = write_chain(tmp_path / "whole.audit.jsonl", a_full_deploy("r1"))
+    lines = whole.read_text(encoding="utf-8").splitlines()[keep]
+    cut = tmp_path / "evidence.audit.jsonl"
+    cut.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return cut
+
+
+def test_an_excerpt_is_read_as_one_rather_than_as_a_tamper(plane, tmp_path):
+    """`make evidence` writes exactly this, and it was reported as broken at line 1."""
+    chain = ledger.read(an_excerpt(tmp_path, slice(2, None)))
+
+    assert chain.state == ledger.FRAGMENT
+    assert chain.broken_line == 0, "an excerpt was reported as breaking somewhere"
+    assert chain.entries, "the excerpt's records were dropped"
+
+
+def test_an_excerpt_that_was_edited_still_breaks(plane, tmp_path):
+    """The point is not to trust an excerpt, it is to stop calling a good one a fake."""
+    cut = an_excerpt(tmp_path, slice(2, None))
+    lines = cut.read_text(encoding="utf-8").splitlines()
+    record = json.loads(lines[1])
+    record["release"] = "something-else"
+    lines[1] = json.dumps(record, sort_keys=True)
+    cut.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    assert ledger.read(cut).state == ledger.BROKEN
+
+
+def test_an_excerpt_says_it_cannot_be_trusted_on_its_own(plane, tmp_path):
+    chain = ledger.read(an_excerpt(tmp_path, slice(2, None)))
+    deployments = ledger.deployments(chain)
+    answers = ledger.answers(deployments[0], chain)
+    trust = next(a for a in answers if a.question == "Can these records be trusted?")
+
+    assert trust.answer == "Not on their own"
+    assert trust.level == language.ATTENTION
+
+
+def test_a_whole_ledger_is_still_intact(plane, tmp_path):
+    """The quiet direction: the change must not turn every ledger into an excerpt."""
+    whole = write_chain(tmp_path / "staging.audit.jsonl", a_full_deploy("r1"))
+    assert ledger.read(whole).state == ledger.INTACT
+
+
+# --- a release deployed twice ---
+
+
+def test_a_retried_release_leaves_two_attempts_and_both_can_be_reached(plane, tmp_path):
+    """Asking for the name alone reached the newer one for ever, and nothing said so."""
+    records = [*a_full_deploy("r1"), *a_full_deploy("r1")]
+    path = write_chain(tmp_path / "staging.audit.jsonl", records)
+    books = ledger.gather(plane, [], [path])
+    older, newer = sorted(books[0].deployments, key=lambda d: d.started_at)
+
+    assert older.ref != newer.ref, "two attempts at one release share a reference"
+    assert ledger.find(books, "r1")[1].ref == newer.ref, "the bare name reaches the wrong one"
+    assert ledger.find(books, older.ref)[1].ref == older.ref, "the earlier attempt is unreachable"
+    assert [d.ref for _, d in ledger.attempts(books, "r1")] == [older.ref, newer.ref]
+
+
+def test_a_deploy_with_no_release_still_has_a_reference(plane, tmp_path):
+    """Records belonging to no deploy are a group, and a group with no name is not addressable."""
+    records = [event("warmup.completed", "", requested=1, ok=1)]
+    path = write_chain(tmp_path / "staging.audit.jsonl", records)
+    books = ledger.gather(plane, [], [path])
+    group = books[0].deployments[0]
+
+    assert group.release == ""
+    assert group.ref, "a group with no release has nothing to address it by"
+    assert ledger.find(books, group.ref)[1].ref == group.ref
 
 
 # --- what the command says to whatever runs it ---

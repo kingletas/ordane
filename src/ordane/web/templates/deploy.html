@@ -2,6 +2,8 @@
 {% block body %}
 <h1><code>{{ deployment.release }}</code></h1>
 <p class="muted">{{ book.environment }}. Started {{ deployment.started_at | moment }}. <a href="/ledger">Back to the ledger</a></p>
+{% if others %}<p class="level-attention">This release was deployed {{ others | length + 1 }} times. Also:
+{% for one in others %}<a href="/ledger/{{ one.ref }}">{{ one.started_at | moment }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
 
 {% if book.chain.state == 'broken' %}
 <div class="notice danger">This ledger's chain breaks at line {{ book.chain.broken_line }}: {{ book.chain.reason }}. {{ chain_state('broken').meaning }}</div>
@@ -12,7 +14,7 @@
   <thead><tr><th>Span</th><th>How long</th></tr></thead>
   <tbody>
   {% for key, seconds in deployment.spans.items() %}
-    <tr><td title="{{ span_meaning(key) }}">{{ span_name(key) }}</td><td>{{ spoken(seconds) }}</td></tr>
+    <tr><td title="{{ span_meaning(key) }}">{% if key == headline %}<strong class="level-attention">{{ span_name(key) }}</strong>{% else %}{{ span_name(key) }}{% endif %}</td><td>{{ spoken(seconds) }}</td></tr>
   {% else %}
     <tr><td colspan="2" class="muted">Nothing in this deploy has two records to measure between.</td></tr>
   {% endfor %}

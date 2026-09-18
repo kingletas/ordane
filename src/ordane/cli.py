@@ -585,8 +585,17 @@ def _ledger(args, repo: Path) -> int:
         found = ledger.find(books, args.release)
         if found is None:
             sys.exit(f"ordane: no deploy of {args.release!r} in any ledger")
-        ledger_view.deployment(*found)
-        broken = found[0].chain.state == ledger.BROKEN
+        book, deployment = found
+        ledger_view.deployment(
+            book,
+            deployment,
+            [
+                one
+                for _, one in ledger.attempts(books, deployment.release)
+                if one.ref != deployment.ref
+            ],
+        )
+        broken = book.chain.state == ledger.BROKEN
         return LEDGER_BROKEN if broken else LEDGER_INTACT
     ledger_view.books(books, args.limit)
     return _ledger_status(books)
@@ -608,7 +617,7 @@ def _ledger_status(books: list) -> int:
         for book in unreadable:
             print(f"\nCannot be read: {book.chain.path}", file=sys.stderr)
         return LEDGER_NOTHING_READ
-    readable = [b for b in books if b.chain.state in (ledger.INTACT, ledger.EMPTY)]
+    readable = [b for b in books if b.chain.state in (ledger.INTACT, ledger.EMPTY, ledger.FRAGMENT)]
     if not readable:
         print(
             "\nNothing was read: no ledger is configured, or every path names a file "
