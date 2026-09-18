@@ -60,6 +60,12 @@ class ActiveRun:
         # Called however the run ends, including when it is cancelled or the
         # process never started: whatever it releases must not be left held.
         self._on_finish = on_finish or (lambda: None)
+        # Set once the finished run is in the store. `finished` waits on this
+        # rather than on the run's state, because the state flips inside
+        # `_conclude` and the record is appended a few lines later: anything
+        # that polled the state and then read the store saw the run as it was
+        # before it ended.
+        self._recorded = threading.Event()
         self._queue: Queue[str | None] = Queue()
         self._buffer: list[str] = []
         self._process: subprocess.Popen | None = None
@@ -75,7 +81,8 @@ class ActiveRun:
 
     @property
     def finished(self) -> bool:
-        return self.run.state != "running"
+        """True once the run has ended *and* its record can be read back."""
+        return self._recorded.is_set()
 
     def buffered(self) -> str:
         with self._lock:
@@ -218,6 +225,7 @@ class ActiveRun:
         try:
             self._conclude(started)
         finally:
+            self._recorded.set()
             self._on_finish()
             self._queue.put(None)
 
