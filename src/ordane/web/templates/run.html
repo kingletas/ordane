@@ -24,7 +24,7 @@
 {% set result = run.result %}
 {% if result.has_recap %}
 <section>
-  <h2>Result <span class="muted">— {{ result.headline }}</span></h2>
+  <h2>Result <span class="muted">{{ result.headline }}</span></h2>
   <table>
     <thead><tr><th>Host</th><th class="num">ok</th><th class="num">changed</th><th class="num">failed</th><th class="num">unreachable</th><th class="num">skipped</th></tr></thead>
     <tbody>

@@ -33,7 +33,7 @@ LEDE = (
 
 PRIVACY = (
     "Ordane runs entirely on this machine. It talks to your repository and to the hosts "
-    "in your inventories — nothing else. There is no account, no telemetry, and no cloud "
+    "in your inventories, and nothing else. There is no account, no telemetry, and no cloud "
     "service behind it."
 )
 

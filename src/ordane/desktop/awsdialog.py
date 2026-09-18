@@ -125,7 +125,7 @@ class AwsInventoryDialog(Adw.Dialog):
         try:
             body = awsinventory.render(self._spec())
         except awsinventory.AwsInventoryError as exc:
-            self._preview.set_text(f"— {exc}")
+            self._preview.set_text(f"Cannot preview: {exc}")
             self._write.set_sensitive(False)
             return
         self._write.set_sensitive(True)

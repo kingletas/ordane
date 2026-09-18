@@ -144,7 +144,7 @@ class Rolled:
 
     @property
     def what(self) -> str:
-        return "Routine runs — " + ", ".join(self.actions)
+        return "Routine runs: " + ", ".join(self.actions)
 
     @property
     def note(self) -> str:

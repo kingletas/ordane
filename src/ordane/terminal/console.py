@@ -49,7 +49,7 @@ def state(run: Run) -> str:
 
 def dashboard(catalog: Catalog, snapshot: Snapshot, runs: list[Run], repo: Path) -> None:
     """Everything the dashboard page shows, in a terminal."""
-    print(f"\n{BOLD}Ordane{OFF} {DIM}— {repo}{OFF}")
+    print(f"\n{BOLD}Ordane{OFF}{DIM}: {repo}{OFF}")
 
     heading("Delivery performance")
     for measure in snapshot.measures:
@@ -72,7 +72,7 @@ def dashboard(catalog: Catalog, snapshot: Snapshot, runs: list[Run], repo: Path)
             else:
                 print(
                     f"  {DIM}·{OFF} {slo.label:<42} {target:<14} "
-                    f"{YELLOW}setup needed{OFF} {DIM}— {slo.blocked}{OFF}"
+                    f"{YELLOW}setup needed{OFF}{DIM}: {slo.blocked}{OFF}"
                 )
 
     if snapshot.notes:
@@ -109,7 +109,7 @@ MARK = {"ok": f"{GREEN}✓{OFF}", "warn": f"{YELLOW}!{OFF}", "fail": f"{RED}✗{
 
 def checkup(report, repo: Path) -> None:
     """The doctor's findings, each with what to do about it."""
-    print(f"\n{BOLD}{report.headline}{OFF} {DIM}— {repo}{OFF}\n")
+    print(f"\n{BOLD}{report.headline}{OFF}{DIM}: {repo}{OFF}\n")
     for finding in report.findings:
         print(f"  {MARK.get(finding.level, ' ')} {BOLD}{finding.title}{OFF}")
         if finding.detail:

@@ -86,7 +86,7 @@ class Completer:
         for one in found[:SHOWN]:
             self._list.append(_choice(one))
         if len(found) > SHOWN:
-            self._list.append(_note(f"and {len(found) - SHOWN} more — keep typing"))
+            self._list.append(_note(f"and {len(found) - SHOWN} more, so keep typing"))
         if not found:
             typed = self._entry.get_text().strip()
             said = f"Nothing here is called “{typed}”" if typed else "Nothing yet"

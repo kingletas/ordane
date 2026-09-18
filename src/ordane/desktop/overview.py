@@ -31,7 +31,7 @@ TILES_ACROSS = 3
 # than twice inside them.
 DORMANT_NOTE = (
     "Change failure rate and time to restore stay dark until a deploy is launched from "
-    "Ordane. Nothing here reads an incident tracker — a restore is the deploy that "
+    "Ordane. Nothing here reads an incident tracker, so a restore is the deploy that "
     "followed a failed one."
 )
 

@@ -244,7 +244,7 @@ class RunsPage(Gtk.Box):
         line.append(caret)
         line.append(
             w.label(
-                f"{plural(item.count, 'routine run')}, all passed — {', '.join(item.actions)}",
+                f"{plural(item.count, 'routine run')}, all passed: {', '.join(item.actions)}",
                 "runitem-meta",
                 wrap=True,
             )

@@ -380,7 +380,7 @@ def _how_exposed(catalog) -> Finding:
             "A run is warned about on the strength of the environment's name, and "
             "these are treated as possibly dangerous because nothing else can be "
             "known about them.",
-            "Name it after what it is — production, staging, dev, docker or local — "
+            "Name it after what it is (production, staging, dev, docker or local), "
             "or accept the warning on every run against it.",
         )
     if live:

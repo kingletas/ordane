@@ -296,7 +296,7 @@ class ActionsPage(Gtk.Box):
         if hosts:
             card.append(
                 _field(
-                    f"Hosts — all {len(hosts)} in {self._environment}",
+                    f"Hosts: all {len(hosts)} in {self._environment}",
                     _host_list(hosts),
                 )
             )
@@ -450,7 +450,7 @@ def _willdo(target, environment: str, hosts, preview: bool) -> Gtk.Widget:
     level = "low" if preview else exposure.level_for(environment, declared)
     aimed = f"Will run {what} on {reach}{environment}"
     return _willdo_label(
-        f"{aimed} — {warned}. {consequence}" if warned else f"{aimed}. {consequence}", level
+        f"{aimed}: {warned}. {consequence}" if warned else f"{aimed}. {consequence}", level
     )
 
 

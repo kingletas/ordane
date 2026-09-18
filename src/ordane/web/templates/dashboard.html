@@ -31,7 +31,7 @@
         <td>{{ s.label }}</td>
         <td>{{ s.target }}</td>
         <td>{{ s.window }}</td>
-        <td>{% if s.has_data %}<strong>{{ s.value }}</strong>{% else %}<span class="muted">no data — {{ s.blocked }}</span>{% endif %}</td>
+        <td>{% if s.has_data %}<strong>{{ s.value }}</strong>{% else %}<span class="muted">no data: {{ s.blocked }}</span>{% endif %}</td>
       </tr>
     {% endfor %}
     </tbody>

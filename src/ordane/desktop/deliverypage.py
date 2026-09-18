@@ -19,7 +19,7 @@ from . import widgets as w  # noqa: E402
 COLUMNS = 2
 
 BOUNDARY = (
-    "A restore is the deploy that followed a failed one — Ordane does not read an "
+    "A restore is the deploy that followed a failed one. Ordane does not read an "
     "incident tracker, so this is deployment recovery rather than service recovery."
 )
 

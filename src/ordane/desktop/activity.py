@@ -40,7 +40,7 @@ def ribbon_block(ribbon: density.Ribbon) -> Gtk.Widget:
     counted.add_css_class("mono")
     foot.append(counted)
     if ribbon.since:
-        foot.append(w.label(f"since {ribbon.since} — {ribbon.sentence}", wrap=True))
+        foot.append(w.label(f"since {ribbon.since}: {ribbon.sentence}", wrap=True))
     foot.append(w.spacer())
     foot.append(w.label("now", "mono"))
     holder.append(foot)

@@ -26,7 +26,7 @@ from .pastedialog import PasteDialog  # noqa: E402
 # What the preview says while the form is not yet answerable. It is deliberately
 # not a command: printing one with a placeholder in it invites somebody to copy
 # a line that would not run.
-NOT_YET = "— fill the form in and the exact command appears here"
+NOT_YET = "Fill the form in and the exact command appears here"
 
 NO_ENVIRONMENT = "No environment may be launched against, so nothing can run from here."
 
@@ -360,7 +360,7 @@ class LaunchDialog(Adw.Dialog):
             row.set_subtitle(
                 _subtitle(
                     param.required,
-                    param.help or f"Start typing — {len(choices)} to choose from",
+                    param.help or f"Start typing: {len(choices)} to choose from",
                 )
             )
             suggest_module.Completer(

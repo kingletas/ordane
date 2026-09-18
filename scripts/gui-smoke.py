@@ -54,6 +54,7 @@ from ordane.core import inventory as inventory_module  # noqa: E402
 from ordane.desktop import geometry  # noqa: E402
 from ordane.desktop import widgets as w  # noqa: E402
 from ordane.desktop.app import ConsoleApplication, Settings  # noqa: E402
+from ordane.desktop.launch import NOT_YET  # noqa: E402
 from ordane.desktop.rail import PLACES, repository_menu  # noqa: E402
 from ordane.desktop.shortcuts import KEYS  # noqa: E402
 from ordane.insight import export  # noqa: E402
@@ -493,7 +494,7 @@ def drive(app, repo: Path, shots: Path) -> None:
         # offering a line that would be refused.
         check(
             "no command is offered while a required field is empty",
-            dialog._preview.get_text().startswith("—"),
+            dialog._preview.get_text() == NOT_YET,
         )
         check(
             "and Run is held until there is one",

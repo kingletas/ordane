@@ -248,7 +248,7 @@ ordane doctor --repo ~/control-plane
 It ends with a verdict rather than a list, and each line says what to do:
 
 ```text
-Usable, with 1 thing worth fixing — /home/you/control-plane
+Usable, with 1 thing worth fixing: /home/you/control-plane
 ```
 
 ### Work from another branch

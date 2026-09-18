@@ -207,7 +207,7 @@ A repository that pings every half hour produces about fifty runs a day, forty-e
 
 So consecutive runs fold into one summary row when **all** of these hold: same action, same environment, it passed, nothing changed on any host, and nobody pressed a button for it. That is a scheduled run, a repeat, or a check inside a runbook. **If you pressed the button you get your own line**: you were there, and you will look for it.
 
-The folded row still prints its count, *44 passed · Routine runs — ping, check*. It opens in place, and nothing is hidden.
+The folded row still prints its count, *44 passed · Routine runs: ping, check*. It opens in place, and nothing is hidden.
 
 ### A row prints only what deviates
 
