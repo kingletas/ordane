@@ -115,7 +115,7 @@ Write a `## target: description` line above a recipe and it appears in the conso
 
 ## Install
 
-Three ways, and `make install` is the one for working on it:
+Four ways, and `make install` is the one for working on it:
 
 ```bash
 make install
@@ -132,6 +132,14 @@ make deb && sudo apt install ./dist/ordane_*_all.deb
 ```
 
 It depends only on what the desktop and the engine actually import: `python3-gi`, `python3-yaml` and the GTK typelibs, and leaves the browser front end's dependencies out. `ordane serve` then tells you what is missing rather than failing with a traceback.
+
+Or a wheel, for a machine that wants the terminal front end and the command rather than the window:
+
+```bash
+uv build --wheel && uv tool install dist/ordane-*.whl
+```
+
+Nothing is published to an index, so the wheel is built from this checkout. That is the right one for a CI job, a server, or somebody else's shell: it brings the engine, `ordane ledger`, `ordane status` and the rest. It does not bring GTK, so `ordane app` on a machine with no desktop libraries tells you what is missing rather than failing with an import error.
 
 Or a flatpak:
 

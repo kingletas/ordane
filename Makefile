@@ -124,8 +124,11 @@ smoke: venv ## Drive the real window against the example, and save a PNG of each
 metadata: ## Validate the desktop entry and its icon
 	@scripts/validate-metadata
 
+# `check` builds the virtualenv first because `uv run` on its own cannot see the
+# system GTK bindings, and every desktop test skips itself when it cannot import
+# them. On this machine .venv already existed and the skip never showed.
 .PHONY: check
-check: lint test metadata ## Everything a commit has to pass
+check: venv lint test metadata ## Everything a commit has to pass
 	@echo
 	@echo "  lint, tests and metadata pass"
 	@echo "  make smoke drives the window; CI proves the packages install instead"
