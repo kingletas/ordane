@@ -204,6 +204,41 @@ class LedgerPage(Gtk.Box):
         self._rows[key] = button
         return button
 
+    def _other_attempts(
+        self, book: ledger.Book, deployment: ledger.Deployment
+    ) -> Gtk.Widget | None:
+        """The other times this release went out, each one a way of opening it.
+
+        The list holds every attempt already, but two rows under one id say
+        nothing about being the same release, and a reader has to notice the
+        repetition to find out. The terminal and the browser both name it.
+        """
+        if not deployment.release:
+            return None
+        tries = ledger.attempts(self._books, deployment.release)
+        others = [pair for pair in tries if pair[1].ref != deployment.ref]
+        if not others:
+            return None
+
+        row = w.row(8)
+        row.append(
+            w.label(f"Deployed {len(tries)} times. The others:", "rundetail-sub", "tint-warn")
+        )
+        for other_book, other in others:
+            when = moment(other.started_at)
+            # Named where it went, when that is somewhere else: one release
+            # reaching staging and then production is the ordinary case, and
+            # the time alone would not say which of them this is.
+            label = (
+                when
+                if other_book.environment == book.environment
+                else (f"{other_book.environment}, {when}")
+            )
+            link = w.linkish(label, lambda b=other_book, d=other: self._show(b, d))
+            link.set_tooltip_text(f"Read the attempt started {when}")
+            row.append(link)
+        return row
+
     def _resolve_choice(self) -> tuple[ledger.Book, ledger.Deployment] | None:
         """The deploy that was open, if it is still there, else the newest one anywhere."""
         pairs = [(b, d) for b in self._books for d in b.deployments]
@@ -243,6 +278,9 @@ class LedgerPage(Gtk.Box):
         w.release_focus(self._detail)
         w.clear(self._detail)
         self._detail.append(_title(book, deployment))
+        others = self._other_attempts(book, deployment)
+        if others is not None:
+            self._detail.append(others)
         if book.chain.state == ledger.BROKEN:
             self._detail.append(
                 w.notice(

@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 
 from ordane.insight import ledger
 from ordane.presentation import language
+from ordane.presentation.text import moment
 from ordane.terminal import ledger as terminal_ledger
 from ordane.web.app import Settings, create_app
 
@@ -149,15 +150,27 @@ def web_pages(tmp_path: Path, path: Path) -> tuple[str, str]:
     return listing, client.get(f"/ledger/{release}").text
 
 
-def terminal_pages(book: ledger.Book, capsys) -> tuple[str, str]:
+def terminal_pages(book: ledger.Book, capsys, chosen: ledger.Deployment | None = None):
+    """The listing and one deploy, printed the way `ordane ledger` prints them.
+
+    The other attempts are worked out by the caller in the CLI, so a helper that
+    does not pass them exercises a deploy that was never retried whatever the
+    ledger holds.
+    """
     terminal_ledger.books([book], 10)
     listing = capsys.readouterr().out
-    terminal_ledger.deployment(book, book.deployments[0])
+    chosen = chosen or book.deployments[0]
+    others = [one for _, one in ledger.attempts([book], chosen.release) if one.ref != chosen.ref]
+    terminal_ledger.deployment(book, chosen, others)
     return listing, capsys.readouterr().out
 
 
-def desktop_text(book: ledger.Book) -> str:
-    """Every label the page draws, as one string."""
+def desktop_text(book: ledger.Book, chosen: ledger.Deployment | None = None) -> str:
+    """Every label the page draws, as one string.
+
+    `chosen` opens a deploy other than the newest, which is the only way to
+    reach what the page draws for an earlier attempt.
+    """
     gi = pytest.importorskip("gi")
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
@@ -168,6 +181,8 @@ def desktop_text(book: ledger.Book) -> str:
     Adw.init()
     page = LedgerPage()
     page.render([book])
+    if chosen is not None:
+        page._show(book, chosen)
     found: list[str] = []
 
     def walk(widget) -> None:
@@ -499,3 +514,27 @@ def test_the_browser_can_reach_the_earlier_attempt(tmp_path):
     # And the bare name still reaches the newest, which is what typing one means.
     by_name = ledger.find(books, older.release)
     assert by_name is not None and by_name[1].ref == newer.ref
+
+
+def test_a_retried_release_is_named_as_one_in_every_front_end(tmp_path, capsys):
+    """Two rows under one id say nothing about being one release deployed twice.
+
+    The window showed both attempts in its list and never said they were the
+    same release, so the reader had to notice a repeated id for themselves,
+    while the other two front ends named it.
+    """
+    path = a_release_deployed_twice(tmp_path)
+    books = ledger.gather(a_plane(tmp_path), [], [path])
+    older, newer = sorted(books[0].deployments, key=lambda d: d.started_at)
+
+    _listing, deploy = terminal_pages(books[0], capsys, chosen=newer)
+    _web_listing, web_deploy = web_pages(tmp_path, path)
+    drawn = desktop_text(books[0], chosen=newer)
+
+    for name, text in (("terminal", deploy), ("browser", web_deploy), ("window", drawn)):
+        assert "deployed 2 times" in text.lower(), f"the {name} does not say it was retried"
+
+    # And each one offers a way to the attempt that is not on screen.
+    assert older.ref in deploy, "the terminal does not print a reference to the other attempt"
+    assert f'href="/ledger/{older.ref}"' in web_deploy, "the browser does not link the other"
+    assert moment(older.started_at) in drawn, "the window does not offer the other attempt"

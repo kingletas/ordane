@@ -7,6 +7,7 @@ Notable changes, newest first. The format follows [Keep a Changelog](https://kee
 ### Added
 
 - `make demo` seeds a release that was deployed twice, so the attempt references can be seen in the demo rather than taken on trust. Two of them: one deploy stopped by a failed backup and one cut short mid-cutover, each followed by another go at the same release.
+- **The window says a release was deployed more than once**, and offers each other attempt as a way of opening it, naming the environment where that attempt went somewhere else. The terminal and the browser already did. The window listed both attempts and left the reader to notice that two rows carried one release id.
 
 ## [0.4.0]: 2026-09-18
 
