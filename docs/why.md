@@ -18,7 +18,7 @@ Because this problem is precisely AWX's problem, and the honest first answer was
 
 AWX's releases are paused, and that is not the same as abandoned. Its last release was 2 July 2024, and a caution at the top of its own README says releases are paused during a large-scale refactor into a pluggable, service-oriented architecture. The project is worked on daily. What that costs anyone adopting it today is the choice between a release over a year old and tracking a refactor that is still in progress.
 
-And it is large. Reproducing what it does means reproducing a product built by roughly 280 contributors since 2017, standing at about 6.4 MB of Python. Adopting it means a prerequisites project of its own, because a Git-backed control plane can only drive automation that is actually in Git and in the shape it expects — which is a weeks-long content project before anything is deployed through it.
+And it is large. Reproducing what it does means reproducing a product built by roughly 280 contributors since 2017, standing at about 6.4 MB of Python. Adopting it means a prerequisites project of its own, because a Git-backed control plane can only drive automation that is actually in Git and in the shape it expects. That is a weeks-long content project before anything is deployed through it.
 
 The comparison stands as the reason **not to build a platform**. Sixteen of seventeen requirement areas in the original specification mapped onto AWX features that shipped years ago, so anything reaching for that scope is rebuilding what already exists.
 
@@ -26,14 +26,14 @@ The comparison stands as the reason **not to build a platform**. Sixteen of seve
 
 The requirements this started from described a multi-team platform: RBAC, approval workflows, scheduling, notifications, execution environments, reporting, SSO. All reasonable, none of them the thing that was wrong.
 
-Ruled on 2026-09-01: neither route was taken. What is wanted is a front end for one flow — see the command, run it, watch it, keep the record — not a platform for teams that do not exist yet. Everything above was deferred rather than deleted, and the deferral is the reason this is usable now.
+Ruled on 2026-09-01: neither route was taken. What is wanted is a front end for one flow: see the command, run it, watch it, keep the record. Not a platform for teams that do not exist yet. Everything above was deferred rather than deleted, and the deferral is the reason this is usable now.
 
 ## What the reason decided
 
 - **It reads the repository as it already is.** With a Makefile it drives that, taking the targets from `make help`; without one, the playbooks are the catalogue and it runs `ansible-playbook` directly. **Neither shape has to change to be driven.** A tool that requires you to restructure your automation before it can run it has moved the work rather than done it.
 - **The command is shown before it runs.** That is the "before" half of the gap, and it is worth more than any feature behind it.
 - **The record is the product.** Output is streamed and kept. If the terminal closing loses it, the tool has not solved the thing it exists for.
-- **Three ways in, one engine.** A desktop window, a browser, and a terminal that opens nothing. All three read the same configuration, enforce the same refusals and write to the same history — because a refusal that only exists in the GUI is not a refusal.
+- **Three ways in, one engine.** A desktop window, a browser, and a terminal that opens nothing. All three read the same configuration, enforce the same refusals and write to the same history, because a refusal that only exists in the GUI is not a refusal.
 
 ## Where the examples came from
 
@@ -47,4 +47,4 @@ To ordain is not to describe a thing. It is to make the thing so by saying it. E
 
 That is the whole of this program. It takes the command out of your shell, holds it up, and reads it back to you before a single host is touched. It watches while it runs. It keeps the record, so the deploy outlives the terminal.
 
-Everything else here is machinery in service of those two moments — the one before, and the one after.
+Everything else here is machinery in service of those two moments: the one before, and the one after.

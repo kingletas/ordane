@@ -27,7 +27,7 @@ Everything described here is also available in the terminal and in a browser, ov
 
 ## The rail and the stage
 
-The window is a dark rail down the left and a stage beside it. **The rail holds places and nothing else.** Everything you can do *to* a repository — re-read it, open its configuration, export its history, check it, open another — is on the repository card at the foot of the rail, and in the command palette.
+The window is a dark rail down the left and a stage beside it. **The rail holds places and nothing else.** Everything you can do *to* a repository (re-read it, open its configuration, export its history, check it, open another) is on the repository card at the foot of the rail, and in the command palette.
 
 At the top of the stage is the place you are in, what it is about, and four things: the command palette (`Ctrl+K`), re-read the repository (`Ctrl+R`), the main menu, and the window controls.
 
@@ -57,7 +57,7 @@ Three more screens are reached from those rather than listed beside them, becaus
 
 The page leads with **one sentence** saying whether it is safe to deploy, and one line naming the single thing standing in the way. Nothing else on the screen is allowed to compete with it.
 
-Under it is the estate: one tile per environment, with a status bar down its edge, how many hosts it holds, when it last ran, and how much the last run had to change. An environment that is waiting on you gains one line saying what would fix it — in blue, because a repository that has not finished being set up has not gone wrong.
+Under it is the estate: one tile per environment, with a status bar down its edge, how many hosts it holds, when it last ran, and how much the last run had to change. An environment that is waiting on you gains one blue line saying what would fix it, because a repository that has not finished being set up has not gone wrong.
 
 Then the instruments: the setup card while there are steps left, the two delivery measures that have a source, the objectives, and the last day of runs.
 
@@ -72,13 +72,13 @@ Below that, the four delivery measures, under the names the industry gave them:
 
 Two of the four come from the release log your reporter commits, and two from this console's own runs. Change failure rate counts finished deploy runs and their exit codes. Time to restore measures the gap between a failed deploy and the next one that worked on the same environment, so what it is really timing is the deployment being restored, not the service. Nothing here reads an incident tracker, which means a failure nobody deployed through is invisible to it, and a second failure before a fix does not restart the clock.
 
-A card with no source is dormant — a dashed outline and the sentence that would turn it on. It never says `no data`, never says `Setup needed`, and never shows a zero, because a backfilled figure makes an absence look like a measurement, and a page that invents a good number is less use than one admitting a gap.
+A card with no source is dormant: a dashed outline and the sentence that would turn it on. It never says `no data`, never says `Setup needed`, and never shows a zero, because a backfilled figure makes an absence look like a measurement, and a page that invents a good number is less use than one admitting a gap.
 
 A comparison with the previous six months only appears where the sample supports it. Both halves need at least eight releases; below that an arrow would be noise pointing somewhere, and people read arrows as findings. The arrow shows what the number did and the colour says whether that is good news, so a lead time that rose points up and is amber.
 
 Recent runs folds away, and so does the run history on the Runs page. Click the heading. Your choice is remembered between sessions, like the window size and the rail.
 
-The objectives below follow the same rule. One with no way to be measured says what it is short of — *Needs 1 cutover*, *Needs a probe* — rather than complaining, whether what is missing is a probe that should not run on a laptop or an SLI definition nobody has written. You decide which environments count towards a measure in `.ordane.yml`; without that, a run against a throwaway container fleet would read as a release.
+The objectives below follow the same rule. One with no way to be measured says what it is short of (*Needs 1 cutover*, *Needs a probe*) rather than complaining, whether what is missing is a probe that should not run on a laptop or an SLI definition nobody has written. You decide which environments count towards a measure in `.ordane.yml`; without that, a run against a throwaway container fleet would read as a release.
 
 ## Actions
 
@@ -203,17 +203,17 @@ The list on the left, one run open on the right. Every run this console has laun
 
 ### A row has to earn its line
 
-A repository that pings every half hour produces about fifty runs a day, forty-eight of which say the same thing. Listed one per line, that history stops being information and becomes a log — and a log is what this exists to be better than.
+A repository that pings every half hour produces about fifty runs a day, forty-eight of which say the same thing. Listed one per line, that history stops being information and becomes a log. A log is what this exists to be better than.
 
-So consecutive runs fold into one summary row when **all** of these hold: same action, same environment, it passed, nothing changed on any host, and nobody pressed a button for it — a scheduled run, a repeat, or a check inside a runbook. **If you pressed the button you get your own line**: you were there, and you will look for it.
+So consecutive runs fold into one summary row when **all** of these hold: same action, same environment, it passed, nothing changed on any host, and nobody pressed a button for it. That is a scheduled run, a repeat, or a check inside a runbook. **If you pressed the button you get your own line**: you were there, and you will look for it.
 
-The folded row still prints its count — *44 passed · Routine runs — ping, check* — and opens in place. Nothing is hidden, only folded.
+The folded row still prints its count, *44 passed · Routine runs — ping, check*. It opens in place, and nothing is hidden.
 
 ### A row prints only what deviates
 
 Zero is not news. An unchanged host count is left out rather than rendered as `0`, and a duration is printed only for a live run or one that took unusually long for its action.
 
-What a row carries is four things: the outcome, the action on its environment, the one fact that explains the outcome, and when. The fact is a sentence fragment — *4 of 6 hosts changed*, *db-01: lock timeout after 2m 41s* — not a number in a column.
+What a row carries is four things: the outcome, the action on its environment, the one fact that explains the outcome, and when. The fact is a sentence fragment (*4 of 6 hosts changed*, *db-01: lock timeout after 2m 41s*) rather than a number in a column.
 
 ### Shape before text
 
@@ -225,7 +225,7 @@ Overview shows at most five rows that deviated plus one folded row. If more devi
 
 **Worth a look** is the default and it is the folding above: it never hides a failure, a change, or a run somebody launched by hand. **Everything** prints one line per run. Beside them, the same four questions this history has always been asked: everything, what broke, what is still going, and what touched customers.
 
-Under the list is **Decisions** — what was *changed* here, as against what was *run*. A ref switch, an environment being allowed, an objective being set. A run is not the only thing that decides what this console will deploy.
+Under the list is **Decisions**: what was *changed* here, as against what was *run*. A ref switch, an environment being allowed, an objective being set. A run is not the only thing that decides what this console will deploy.
 
 ## Environments
 
@@ -239,7 +239,7 @@ An environment that is waiting on you is opened out, with the sentence saying wh
 
 All four delivery signals, each either a figure with the range it was computed over, or a dormant card saying in a sentence what would turn it on. A chart's axis labels name the same range as the line above them.
 
-Below them the service objectives, each with a gauge that carries its own target tick, so you are not asked to hold two numbers and compare them yourself. An objective with no source says what it is short of — *Needs 1 cutover*, *Needs a probe* — rather than the words `Setup needed`.
+Below them the service objectives, each with a gauge that carries its own target tick, so you are not asked to hold two numbers and compare them yourself. An objective with no source says what it is short of (*Needs 1 cutover*, *Needs a probe*) rather than the words `Setup needed`.
 
 At the foot is what these numbers do not cover, in the copy rather than in fine print. A restore is the deploy that followed a failed one; nothing here reads an incident tracker.
 
@@ -257,7 +257,7 @@ The list on the left is each ledger and its deploys, newest first. Choose one an
 - **Who** requested it, who approved it, which host built it, and who verified it afterwards. A step recorded by someone other than the person who started the deploy is highlighted.
 - **What** went out: the commit, the branch, the release, and the archive's checksum.
 - **Whether it is what was approved and built.** The approved commit is compared with the built one, and the checksum at cutover with the checksum at build. A mismatch is shown in red.
-- **When** it started and how long it took.
+- **When** it started.
 - **Whether the site went into maintenance**, and whether a backup was taken or failed.
 - **How long it took.** Every span is the gap between two records the ledger already carries: how long the maintenance page was up, the cutover, the build, the whole deploy, the warm-up, and the wait until somebody verified it. A phase with a record at only one end is not timed, and nothing is estimated.
 - **Whether it worked**, and how the cache warm-up went.
@@ -267,11 +267,11 @@ Under the answers is the flow itself: one line per step, with its time, its deta
 
 ### What a full record looks like
 
-Ordane reads whatever the playbook wrote and never fills a gap in. A deploy that recorded every step carries nine kinds of record, and an absence is worth reading rather than skipping:
+Ordane reads whatever the playbook wrote and never fills a gap in. A deploy that recorded every step carries nine kinds of record:
 
 | Record | Written when | What its absence means |
 |---|---|---|
-| Deploy requested | every deploy, at the start | nothing: without it there is no deploy here to read |
+| Deploy requested | every deploy, at the start | it cannot be absent |
 | Approval checked | the environment requires a signed approval | approval is off for this environment, or the deploy stopped before the check |
 | Built | the release archive was built and checksummed | the deploy stopped before the build |
 | Cutover began | the web hosts started switching over | the deploy never reached the hosts |
@@ -281,9 +281,13 @@ Ordane reads whatever the playbook wrote and never fills a gap in. A deploy that
 | Caches warmed | the warm-up is on for this environment | it is off, or the deploy did not get that far |
 | Finished | the playbook reached its end | the deploy stopped, or is still running |
 
+A tenth, **Verified**, comes from the checks that run after a deploy, which are a separate playbook run and may be run by somebody else. Until they pass, the page says *Not yet*.
+
+Three of these are environment settings rather than faults: approval, the backup rule, and the warm-up. **Ordane cannot tell a setting from a failure**, which is why every absence is worded as what is missing rather than as something going wrong.
+
 ### The fields it reads
 
-A ledger is one JSON object per line. Ordane reads these keys and shows anything else it finds only as part of the record:
+A ledger is one JSON object per line. Ordane reads these keys:
 
 | Key | Used for |
 |---|---|
@@ -300,13 +304,9 @@ A ledger is one JSON object per line. Ordane reads these keys and shows anything
 | `requested`, `ok`, `percent` | the warm-up |
 | `outcome` | how the deploy ended, and whether verification passed |
 
-**A key Ordane does not know is not an error**, and a missing one is read as an absence rather than a zero. The playbook this was built against documents what writes each of them in [its ledger reference](https://github.com/kingletas/magento-deploy-playbook/blob/main/docs/ledger.md).
+**A key Ordane does not know is not an error.** The playbook this was built against documents what writes each of them in [its ledger reference](https://github.com/kingletas/magento-deploy-playbook/blob/main/docs/ledger.md).
 
-A tenth, **Verified**, comes from the checks that run after a deploy, which are a separate playbook run and may be somebody else. Until they pass, the page says *Not yet*.
-
-So three of these are environment settings rather than faults: approval, the backup rule, and the warm-up. **Ordane cannot tell a setting from a failure**, which is why every absence is worded as what is missing rather than as something going wrong. If you want a deploy that exercises all nine, turn those three on in the environment first.
-
-Under that is how long deploys take in this environment: the typical figure for each span, its fastest and slowest, and how many deploys it was measured over. A span nothing has reached says so rather than showing zero, and a deploy whose records sit after a break in the chain is left out of every figure. **A span measured as zero and a span nobody can measure are different things, and the page says which**: the first reads *under a second*, the second reads *not measured*.
+Under that is how long deploys take in this environment: the typical figure for each span, its fastest and slowest, and how many deploys it was measured over. A deploy whose records sit after a break in the chain is left out of every figure. **A span measured as zero and a span nobody can measure are different things, and the page says which**: the first reads *under a second*, the second reads *not measured*.
 
 The maintenance window leads wherever a timing is shown, because it is the only span customers experience.
 
