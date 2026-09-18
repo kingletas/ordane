@@ -102,6 +102,11 @@ def a_run(**kwargs) -> Run:
         started=(datetime.now(UTC) - timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         state="succeeded",
         exit_code=0,
+        # A run that ended carries both. Left unset, everything that draws or
+        # measures a duration takes its "nothing to measure" branch, and four of
+        # them are then never drawn in any page test.
+        finished=(datetime.now(UTC) - timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        duration_s=112.0,
         summary=Summary(hosts=[HostResult(host="web-01", ok=3)], has_recap=True).as_record(),
     )
     base.update(kwargs)
@@ -138,12 +143,27 @@ class Scene:
     standings: list
 
 
+def _history_relative_to_the_repo() -> str:
+    """Where the window looks for the release history, asked of the window's own default.
+
+    Imported here rather than at the top: this file is collected by the probe
+    that runs the suite with no toolkit installed, and the desktop package needs
+    GTK to import at all.
+    """
+    from ordane.desktop import app as app_module
+
+    return app_module.Settings.history
+
+
 def a_scene(repo: Path, tmp_path: Path, *, runs=()) -> Scene:
     """Everything a page is given, assembled the way `window.py` assembles it."""
     runs = list(runs)
     state_dir = tmp_path / "state"
     state_dir.mkdir(exist_ok=True)
-    history_path = state_dir / "history.csv"
+    # The same file the window reads. Pointed anywhere else, every scene is a
+    # control plane that has never released, and the pages that draw a measured
+    # figure are only ever asked to draw the dormant one.
+    history_path = repo / _history_relative_to_the_repo()
     events_path = state_dir / "deployments.jsonl"
 
     config = config_module.load(repo)
@@ -171,7 +191,16 @@ def a_scene(repo: Path, tmp_path: Path, *, runs=()) -> Scene:
         catalog=catalog,
         runs=runs,
         snapshot=snapshot,
-        verdict=verdict_module.decide(catalog=catalog, health=health, setup=setup, runs=runs),
+        verdict=verdict_module.decide(
+            catalog=catalog, health=health, setup=setup, runs=runs, error=""
+        ),
         setup=setup,
-        standings=env_module.standings(environments=catalog.environments, runs=runs, hosts={}),
+        standings=env_module.standings(
+            environments=catalog.environments,
+            runs=runs,
+            # Keyed by name, as the window keys it from the inventories it read.
+            # Keyed by the environment object instead, every lookup misses and
+            # the standings silently take their unknown-host branch.
+            hosts={e.name: 2 for e in catalog.environments},
+        ),
     )

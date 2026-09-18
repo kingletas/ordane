@@ -37,9 +37,20 @@ def test_a_failure_is_never_folded_away(adw):
 
 
 def test_nothing_ran_today_draws_a_sentence(adw):
-    from ordane.desktop.activity import activity
+    """An empty day says so. A blank panel reads as a screen that failed to load.
 
-    assert page_text(activity([], on_open=lambda *_: None)) is not None
+    The list itself draws one row per run and nothing at all for none, so the
+    sentence is the page's to write, and which sentence depends on whether there
+    is any history behind the quiet day.
+    """
+    from ordane.desktop.overview import _nothing_ran
+
+    fresh = page_text(_nothing_ran(False))
+    quiet = page_text(_nothing_ran(True))
+
+    assert "yet" in fresh, "a console nothing has ever run through says nothing"
+    assert "last day" in quiet, "a quiet day on a console with history says nothing"
+    assert fresh != quiet, "the two empty days are drawn the same way"
 
 
 # --- suggest: the list that filters while somebody types ---
