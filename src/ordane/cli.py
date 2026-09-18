@@ -566,9 +566,9 @@ def _app(args, repo: Path) -> int:
     )
 
 
-# What `ordane ledger` says to whatever runs it. A scheduled job needs to hear
-# about a ledger that has gone missing as loudly as one that has been edited:
-# the path in a config file is exactly the thing that goes stale unnoticed.
+# What `ordane ledger` says to whatever runs it. 1 covers both nothing read at
+# all and a file that cannot be read, because a job that gets neither a ledger
+# nor a reason has learnt nothing either way.
 LEDGER_INTACT = 0
 LEDGER_NOTHING_READ = 1
 LEDGER_BROKEN = 2
@@ -593,9 +593,21 @@ def _ledger(args, repo: Path) -> int:
 
 
 def _ledger_status(books: list) -> int:
-    """A ledger that exists and holds no deploys yet is healthy; none at all is not."""
+    """What a scheduled job hears.
+
+    A broken chain outranks everything. A file that is there and cannot be read
+    is a fault, whatever else read cleanly. A file that is not there is not a
+    fault: an environment that has never deployed looks exactly the same from
+    here, and a nightly job that cries wolf on a fresh environment is one
+    nobody reads. The listing names those paths either way.
+    """
     if any(book.chain.state == ledger.BROKEN for book in books):
         return LEDGER_BROKEN
+    unreadable = [b for b in books if b.chain.state == ledger.UNREADABLE]
+    if unreadable:
+        for book in unreadable:
+            print(f"\nCannot be read: {book.chain.path}", file=sys.stderr)
+        return LEDGER_NOTHING_READ
     readable = [b for b in books if b.chain.state in (ledger.INTACT, ledger.EMPTY)]
     if not readable:
         print(

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block body %}
 <h1><code>{{ deployment.release }}</code></h1>
-<p class="muted">{{ book.environment }} — started {{ deployment.started_at | moment }}. <a href="/ledger">Back to the ledger</a></p>
+<p class="muted">{{ book.environment }}. Started {{ deployment.started_at | moment }}. <a href="/ledger">Back to the ledger</a></p>
 
 {% if book.chain.state == 'broken' %}
 <div class="notice danger">This ledger's chain breaks at line {{ book.chain.broken_line }}: {{ book.chain.reason }}. {{ chain_state('broken').meaning }}</div>

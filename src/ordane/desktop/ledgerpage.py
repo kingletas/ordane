@@ -19,6 +19,7 @@ from ..insight import ledger  # noqa: E402
 from ..presentation import language  # noqa: E402
 from ..presentation.text import clock, day, moment, plural  # noqa: E402
 from . import widgets as w  # noqa: E402
+from .pills import CHAIN_PILL, LEVEL_TINT, OUTCOME_PILL  # noqa: E402
 
 LIST_WIDTH = 320
 
@@ -26,31 +27,6 @@ LIST_WIDTH = 320
 DEPLOYS_SHOWN = 40
 
 ANSWER_COLUMNS = 2
-
-OUTCOME_PILL = {
-    ledger.SUCCEEDED: "ok",
-    ledger.BUILT_ONLY: "ok",
-    ledger.FINISHED: "wait",
-    ledger.RECORDS_ONLY: "mute",
-    ledger.FAILED: "fail",
-    ledger.STOPPED: "fail",
-    ledger.UNFINISHED: "warn",
-}
-
-LEVEL_TINT = {
-    language.OK: ("tint-ok", "emblem-ok-symbolic"),
-    language.ATTENTION: ("tint-warn", "dialog-warning-symbolic"),
-    language.PROBLEM: ("tint-bad", "dialog-error-symbolic"),
-    language.UNKNOWN: ("tint-muted", "dialog-question-symbolic"),
-}
-
-CHAIN_PILL = {
-    ledger.INTACT: "ok",
-    ledger.BROKEN: "fail",
-    ledger.EMPTY: "mute",
-    ledger.MISSING: "mute",
-    ledger.UNREADABLE: "warn",
-}
 
 NONE_FOUND = (
     "This control plane names no deploy ledger. Ordane reads the `audit.path` each "
@@ -138,6 +114,15 @@ class LedgerPage(Gtk.Box):
                     f"Breaks at line {book.chain.broken_line}: {book.chain.reason}",
                     "runitem-meta",
                     "tint-bad",
+                    wrap=True,
+                )
+            )
+        if book.chain.newer_schema:
+            head.append(
+                w.label(
+                    language.newer_format(book.chain.newer_schema),
+                    "runitem-meta",
+                    "tint-warn",
                     wrap=True,
                 )
             )

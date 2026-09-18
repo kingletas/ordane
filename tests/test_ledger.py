@@ -517,6 +517,22 @@ def test_a_span_nothing_has_reached_says_so_rather_than_reporting_zero(tmp_path)
     assert found["cutover"].blocked == ledger.NOT_REACHED
 
 
+def test_a_record_whose_time_carries_no_zone_is_read_rather_than_thrown(tmp_path):
+    """The writer stamps UTC, and a file that does not is still a file.
+
+    Comparing an aware time with a naive one raises, and that comparison sits in
+    the middle of measuring a span, so a single stamp without an offset took all
+    three front ends down and exited as though nothing had been read. A file
+    consistent with itself still measures correctly, because a span is a gap.
+    """
+    records = a_full_deploy("r1")
+    records[3] = {**records[3], "recorded_at": "2026-09-01T10:04:00"}
+    chain = ledger.read(write_chain(tmp_path / "staging.audit.jsonl", records))
+
+    assert chain.state == ledger.INTACT
+    assert ledger.deployments(chain)[0].spans, "a readable deploy reported no timings at all"
+
+
 def test_records_after_a_break_are_left_out_of_the_timings(tmp_path):
     """A figure is only as good as the records under it, so an edited one counts for nothing."""
     path = write_chain(
@@ -596,13 +612,24 @@ def test_a_deploy_after_loose_records_is_still_its_own_deploy(tmp_path):
 
 @pytest.mark.parametrize(
     ("case", "expected"),
-    [("missing", 1), ("no-config", 1), ("empty-glob", 1), ("empty-file", 0), ("intact", 0)],
+    [
+        ("missing", 1),
+        ("no-config", 1),
+        ("empty-glob", 1),
+        ("empty-file", 0),
+        ("intact", 0),
+        ("intact-and-missing", 0),
+        ("intact-and-unreadable", 1),
+    ],
 )
 def test_the_exit_status_says_whether_anything_was_read(plane, tmp_path, case, expected):
-    """A scheduled job has to hear about a ledger that has gone, not only one that was edited.
+    """A scheduled job has to hear about a ledger it could not read, not only one that was edited.
 
-    The quiet direction is the one that will go wrong: a ledger that exists and
-    holds no deploys yet is a fresh environment, not a fault, and stays 0.
+    Two quiet directions, and they are not the same. A ledger that exists and
+    holds no deploys yet is a fresh environment, not a fault. A path with no
+    file at it is the same shape as that fresh environment, so it cannot fail
+    the job either. A file that is there and will not open is a fault whatever
+    else read cleanly, which is the case that used to pass.
     """
     argv = ["ledger", "--repo", str(plane)]
     if case == "missing":
@@ -617,6 +644,12 @@ def test_the_exit_status_says_whether_anything_was_read(plane, tmp_path, case, e
         argv += ["--ledger", str(empty)]
     elif case == "intact":
         argv += ["--ledger", str(FIXTURE)]
+    elif case == "intact-and-missing":
+        argv += ["--ledger", str(FIXTURE), "--ledger", str(tmp_path / "nowhere.audit.jsonl")]
+    elif case == "intact-and-unreadable":
+        garbled = tmp_path / "production.audit.jsonl"
+        garbled.write_bytes(b"\xff\xfe not text at all\n")
+        argv += ["--ledger", str(FIXTURE), "--ledger", str(garbled)]
     assert cli.main(argv) == expected
 
 

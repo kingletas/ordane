@@ -54,7 +54,7 @@ def books(found: list[ledger.Book], limit: int) -> None:
 
 def deployment(book: ledger.Book, chosen: ledger.Deployment) -> None:
     """One deploy: the answers a reviewer asks for, then the flow that backs them."""
-    print(f"\n{BOLD}{chosen.release or 'Deploy'}{OFF} {DIM}— {book.environment}{OFF}")
+    print(f"\n{BOLD}{chosen.release or 'Deploy'}{OFF} {DIM}({book.environment}){OFF}")
     _chain_line(book)
 
     heading("What the records say")

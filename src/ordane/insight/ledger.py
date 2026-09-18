@@ -15,7 +15,7 @@ import glob
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
@@ -539,10 +539,18 @@ def _environment_from_name(path: Path) -> str:
 
 
 def _stamp(stamp: str) -> datetime | None:
+    """A record's time, always with a zone.
+
+    The writer records UTC, and a stamp that arrives without an offset is read
+    as UTC rather than refused: a span is the gap between two of these, so a
+    file that is consistent with itself measures correctly either way. Mixing
+    the two kinds is what raises, and a ledger is not allowed to raise.
+    """
     try:
-        return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        at = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         return None
+    return at if at.tzinfo is not None else at.replace(tzinfo=UTC)
 
 
 def _parse(line: str) -> tuple[dict, str]:
@@ -832,8 +840,18 @@ def _downtime(d: Deployment) -> Answer:
             "No",
             "One was planned, but the deploy stopped before the maintenance page went up.",
         )
+    if d.first("cutover.started") is None:
+        return Answer(
+            question, "No", "The deploy stopped before the cutover, so nothing changed on the site."
+        )
+    # The cutover happened and no record says whether a window was needed. That
+    # is a gap in the ledger, not an answer, and reading it as "No" put a reason
+    # under it that the records cannot support.
     return Answer(
-        question, "No", "The deploy stopped before the cutover, so nothing changed on the site."
+        question,
+        "Not recorded",
+        "The cutover records do not say whether a window was needed.",
+        language.UNKNOWN,
     )
 
 
@@ -860,7 +878,12 @@ def _backup(d: Deployment) -> Answer:
             "The deploy stopped before the backup step.",
             language.UNKNOWN,
         )
-    return Answer(question, "None taken", "This environment's backup rule did not call for one.")
+    return Answer(
+        question,
+        "None recorded",
+        "No backup record was written, which is what a rule that asked for none looks like too.",
+        language.UNKNOWN,
+    )
 
 
 def _did_it_work(d: Deployment) -> Answer:

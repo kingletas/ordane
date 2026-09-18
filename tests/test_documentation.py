@@ -229,7 +229,7 @@ def test_every_ledger_identifier_a_person_sees_has_a_word():
     ledger's five chain states, its outcomes and its eleven events did not, and
     a front end renders whatever the engine hands it.
     """
-    from ordane.desktop import ledgerpage
+    from ordane.desktop import pills
     from ordane.insight import ledger
 
     states = (
@@ -251,11 +251,11 @@ def test_every_ledger_identifier_a_person_sees_has_a_word():
     for state in states:
         assert language.chain_state(state).name != state, f"{state} is shown as itself"
         assert language.chain_state(state).meaning
-        assert state in ledgerpage.CHAIN_PILL, f"{state} has no pill"
+        assert state in pills.CHAIN_PILL, f"{state} has no pill"
     for outcome in outcomes:
         assert language.ledger_outcome(outcome).name != outcome
         assert language.ledger_outcome(outcome).meaning
-        assert outcome in ledgerpage.OUTCOME_PILL, f"{outcome} has no pill"
+        assert outcome in pills.OUTCOME_PILL, f"{outcome} has no pill"
     for event in ledger.SPAN_RECORDS:
         assert language.span_name(event) != event
     for name in language.LEDGER_STEPS:
