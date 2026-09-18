@@ -55,7 +55,7 @@ ignore = [
 # S603/S607: `git` is spawned with a fixed argument list and no shell, to read
 # a branch name and a porcelain status. Nothing from a form reaches it.
 "src/ordane/core/repository.py" = ["S603", "S607"]
-# S603/S607: the same `git`, with the same fixed argument list — and every URL
+# S603/S607: the same `git`, with the same fixed argument list, and every URL
 # that reaches it has been through `usable_url` first, which allows four
 # transports by name rather than blocking the ones it has heard of.
 "src/ordane/core/source.py" = ["S603", "S607"]

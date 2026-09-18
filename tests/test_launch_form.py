@@ -1,6 +1,6 @@
 """The form is built for real targets, so a broken row is caught by `make check`.
 
-Nothing here drives the widgets, which the window smoke does. This is the
+Nothing here drives the widgets. The window smoke does that. This is the
 cheaper half: every kind of parameter builds its row without raising, which is
 the failure that reached a live window once already.
 """

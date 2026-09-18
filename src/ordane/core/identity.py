@@ -16,7 +16,7 @@ ROOT_UID = 0
 
 # One random id per installation, written once. A run id is a timestamp and a
 # little randomness, which is unique on one machine and not across several.
-# (installation, id) is the pair that is.
+# (installation, id) is the pair that is unique.
 INSTALLATION_FILE = "installation-id"
 
 

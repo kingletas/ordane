@@ -6,15 +6,17 @@ Notable changes, newest first. The format follows [Keep a Changelog](https://kee
 
 ### Added
 
-- **An excerpt of a ledger reads as an excerpt.** The playbook's `make evidence` writes one deploy's records with the numbers they had in the file they came from, so the chain begins partway through another one. That was reported as broken at line 1, which is a tamper tool calling the auditor's own copy a fake. It is now a state of its own, and the trust answer says the records link to each other and the first links to one that is not in the file.
-- **A release deployed twice can be told apart.** Every attempt carries a reference of its own, the browser links each row to it, and the terminal names the other attempts and how to reach them. Asking for a release by name still reaches the newest, which is what somebody typing one means.
-- The span customers feel leads in all three front ends, and the browser marks it rather than printing six the same. The window no longer keeps its own copy of the order the engine decides.
+- **An evidence bundle reads as an excerpt.** The playbook's `make evidence` writes one release's records into a folder beside a `chain.txt` naming the log they came from, how long it was and where it ended. Ordane reads that folder as an excerpt: it checks every record still hashes to its own contents and is the record `chain.txt` wrote down, and it says which log to check the bundle against. It does not read the records as a chain, because they are a selection: anything deployed in between was left behind, so the numbering skips and the record after a gap links to one the bundle does not hold.
+- **A release deployed twice can be told apart.** Every attempt carries a reference of its own, the browser links each row to it, and the terminal names the other attempts and how to reach them. The reference carries the environment, so one release going to staging and then to production is two addresses rather than one. Asking for a release by name still reaches the newest, which is what somebody typing one means.
+- The span customers feel, the maintenance window, leads in all three front ends, and the browser marks it rather than drawing all six spans alike.
 - `ORDANE_PLAYBOOK` points the suite at a playbook checkout, so the reader is checked against the writer as it is today rather than only against a captured file.
 
 ### Fixed
 
+- **The wheel would not build.** A packaging rule re-added a path the package already carried, and the build refuses the duplicate, so nothing could be installed from a checkout. CI builds one now, installs it somewhere clean, runs it, and opens the templates, fonts and stylesheets a working copy needs.
+- **A run said it was finished a moment before its record could be read back.** Opening it the instant it ended could answer that there was no such run, and the next step of a runbook could meet the lock the last one still held.
+- **A cancelled run that ignores the interrupt is now stopped rather than waited for.** The kill was reached only once the output ended, so a process that kept its terminal open held its environment locked for as long as it chose, and nothing else could deploy there.
 - A group of records belonging to no deploy drew a link to nowhere in the browser.
-- The window read a raw record field for the host that built a release, where the other two front ends use the deploy's own property.
 
 ## [0.3.0]: 2026-09-17
 
