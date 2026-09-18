@@ -20,7 +20,7 @@ UNKNOWN = "unknown"
 LIVE_WORDS = ("production", "prod", "prd", "live")
 
 # Only the four families that were named, and the spellings each one has.
-# Anything else is unknown on purpose — widening this list is how a real
+# Anything else is unknown on purpose: widening this list is how a real
 # environment quietly becomes a safe one.
 SAFE_WORDS = (
     "staging",

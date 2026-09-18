@@ -1,7 +1,7 @@
 """What ran, drawn under the density rules rather than one line per run.
 
 Four things on a row: the outcome, the action on its environment, the single
-fact that explains the outcome, and when. No zeroes — an unchanged host count
+fact that explains the outcome, and when. No zeroes: an unchanged host count
 and an unremarkable duration are left out rather than printed as `0`.
 """
 

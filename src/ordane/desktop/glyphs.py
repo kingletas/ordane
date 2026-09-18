@@ -3,7 +3,7 @@
 Adwaita has no glyph for a delivery chart or for a lane of hosts, and the rail
 is the one place where six icons have to look like one set. Each is drawn in a
 16×16 box with a 1.4px stroke, and takes its colour from the widget's own CSS
-`color` — so a place that is current gets the pine and the rest stay muted
+`color`, so a place that is current gets the pine and the rest stay muted
 without a second palette.
 """
 

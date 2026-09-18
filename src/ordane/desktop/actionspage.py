@@ -2,7 +2,7 @@
 
 The list on the left is what `make help` or the playbooks said, with the
 environments each action can reach. The composer on the right shows the
-confirmation sentence above a button that names its own outcome — nothing
+confirmation sentence above a button that names its own outcome. Nothing
 happens until it is pressed, and it says what it will do.
 
 The full launch form, with a repository's own parameters, choice lists and dry
@@ -94,7 +94,7 @@ class ActionsPage(Gtk.Box):
         # Which environments each action can reach, and whether that says
         # anything. On a control plane where every action reaches every
         # environment, a column repeating the same four names on all
-        # thirty-seven rows is noise wearing the shape of information — and it
+        # thirty-seven rows is noise wearing the shape of information, and it
         # takes the room the descriptions need. Print only what deviates.
         self._reach = {one.name: _reach_of(one, catalog) for one in catalog.targets}
         self._same_reach = len(set(self._reach.values())) < 2

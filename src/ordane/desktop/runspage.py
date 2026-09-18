@@ -145,7 +145,7 @@ class RunsPage(Gtk.Box):
                 drawn += 1
         older = sum(len(one) for _, one in days[DAYS_SHOWN:])
         if older:
-            # Nothing is lost, only not drawn — and the command that prints the
+            # Nothing is lost, only not drawn, and the command that prints the
             # rest is named rather than left to be found.
             self._list.append(
                 _quiet(

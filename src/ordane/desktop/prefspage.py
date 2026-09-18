@@ -2,7 +2,7 @@
 
 Nothing here is stored and never read. A switch that looks like a setting and
 changes nothing is worse than no switch at all, so what this console cannot yet
-do is not offered — it is named in the note at the foot, where a person can see
+do is not offered. It is named in the note at the foot, where a person can see
 that it is missing rather than that it is broken.
 """
 

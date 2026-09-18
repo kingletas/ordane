@@ -39,8 +39,8 @@ HOSTS = 6
 
 # The tasks a deploy walks through, so the lane chart in the run view has a
 # shape to draw. Written as Ansible actually prints them and parsed back by the
-# same reader a real run goes through — a fixture that bypasses the parser is
-# a fixture that drifts from it.
+# same reader a real run goes through, because a fixture that bypasses the
+# parser is a fixture that drifts from it.
 TASKS = (
     "Gathering Facts",
     "Fetch the release",
@@ -210,7 +210,7 @@ def _scheduled(config, builders: dict[str, str]) -> list[Run]:
 
     Forty-eight of every fifty runs on a repository like this say the same
     thing. Listed one per line the history stops being information, which is
-    exactly what the density rules are for — and a demo that never shows them
+    exactly what the density rules are for, and a demo that never shows them
     is a demo of a quiet repository.
     """
     made: list[Run] = []

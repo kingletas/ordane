@@ -1,9 +1,10 @@
 """The main window: a rail of places, a stage, and one place that refreshes them.
 
 The rail holds places and nothing else. Everything that is a method on the
-repository — re-read it, open its configuration, export its history, check it,
-open another — is on the repository card's menu and in the command palette, so
-there is one navigation system rather than two half ones.
+repository, such as re-reading it, opening its configuration, exporting its
+history, checking it or opening another, is on the repository card's menu and in
+the command palette, so there is one navigation system rather than two half
+ones.
 """
 
 from __future__ import annotations
@@ -1601,7 +1602,7 @@ def breakpoint_for(window) -> Adw.Breakpoint:
     """Below this the rail is taking width the content needs, so it folds away.
 
     The two places that are a list beside a pane stack instead, because a
-    296 px list and a run's own detail cannot both keep their width — and a
+    296 px list and a run's own detail cannot both keep their width, and a
     window that demands more than it has does not lay out at all.
     """
     condition = Adw.BreakpointCondition.parse("max-width: 1100px")

@@ -3,7 +3,7 @@
 Three defects in this design had one shape. A `Gtk.Label` that neither wraps
 nor ellipsises reports its whole text as its minimum width; that becomes the
 minimum of the row, then of the card, then of the page. The page then asks for
-more room than the window has, and GTK does not refuse it — it draws widgets on
+more room than the window has, and GTK does not refuse it: it draws widgets on
 top of each other and logs about an overlay exceeding its width.
 
 The screens are checked at their widest in the window smoke. These are the

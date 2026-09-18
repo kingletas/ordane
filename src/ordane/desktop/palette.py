@@ -31,7 +31,7 @@ GROUPS = (RUN, REPOSITORY, SWITCH, GO)
 SHOWN = 40
 
 # How many runnable actions the list offers before anything is typed. Every one
-# of them is still reachable — by typing its name — and a palette whose first
+# of them is still reachable by typing its name, and a palette whose first
 # group fills the whole panel hides the other three.
 RUN_SHOWN = 3
 

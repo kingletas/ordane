@@ -1,4 +1,4 @@
-# ordane — a desktop console for an Ansible control plane, with or without a Makefile
+# ordane: a desktop console for an Ansible control plane, with or without a Makefile
 #
 # Run `make` with no arguments for the list, and `make demo` to see it working
 # against a control plane that reaches nothing.
@@ -14,7 +14,7 @@ PORT   ?= 8710
 .PHONY: help
 help: ## Show this help
 	@echo
-	@echo "  ordane — a desktop console for an Ansible control plane"
+	@echo "  ordane: a desktop console for an Ansible control plane"
 	@echo
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "    \033[36m%-12s\033[0m %s\n", $$1, $$2}'

@@ -2,7 +2,7 @@
 
 A live run asks the view to refresh once a second. Rebuilding the block for
 that appended a second copy of it every tick, so a run watched for twenty
-seconds carried twenty stacked copies of its own hosts — and the card grew
+seconds carried twenty stacked copies of its own hosts, and the card grew
 until the output pane was drawn on top of the recap above it.
 """
 

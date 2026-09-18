@@ -67,7 +67,8 @@ def outcome(run: Run) -> str:
 
     A run that finished with a non-zero exit failed. One that finished cleanly
     but left a host unreachable, or reported a failed task in its recap, ran
-    and did not do what the repository says — which is degraded, not failure.
+    and did not do what the repository says, which is degraded rather than
+    failed.
     """
     if run.state == "running":
         return LIVE

@@ -7,7 +7,7 @@ it.
 
 The base is Stone, hardened: warm neutral greys and a deep pine, with the rail
 darkened into an instrument body. Cards are lighter than the canvas and never
-white — this is equipment, not paper.
+white, because this is equipment rather than paper.
 
 Four status states and no more. `waiting` is blue on purpose: configuration
 that has not been finished is not a fault, and spending amber on it leaves

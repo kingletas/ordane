@@ -1,7 +1,7 @@
 """The shape of a run: one lane per host, one cell per task.
 
-Ansible already prints what every host did to every task — `ok:`, `changed:`,
-`skipping:`, `fatal:` — and then throws that away into a recap of totals. This
+Ansible already prints what every host did to every task, as `ok:`, `changed:`,
+`skipping:` and `fatal:`, then throws that away into a recap of totals. This
 reads it back into a grid, which is the one thing a log cannot show: which
 hosts are lagging, and which task is the slow one.
 

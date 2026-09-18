@@ -1,7 +1,7 @@
 """The navigation rail: places only, and the repository at the foot of it.
 
-What used to be here was a File menu wearing a sidebar's clothes — fourteen
-rows, nine of them ending in `…` because they opened dialogs — while the real
+What used to be here was a File menu wearing a sidebar's clothes: fourteen
+rows, nine of them ending in `…` because they opened dialogs, while the real
 navigation sat in the title bar. Two navigation systems, neither complete.
 
 The rows below are places. Everything that used to be here and is not a place

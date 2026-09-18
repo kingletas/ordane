@@ -15,7 +15,7 @@ from dataclasses import dataclass
 ROOT_UID = 0
 
 # One random id per installation, written once. A run id is a timestamp and a
-# little randomness, which is unique on one machine and not across several —
+# little randomness, which is unique on one machine and not across several.
 # (installation, id) is the pair that is.
 INSTALLATION_FILE = "installation-id"
 

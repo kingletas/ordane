@@ -1,8 +1,8 @@
 # A control plane that reaches nothing.
 #
 # Every target here prints what a real one would do and exits. It exists so the
-# console can be driven — opened, searched, launched, watched, recorded —
-# without a fleet, and so a repository adopting the console has a working
+# console can be driven without a fleet (opened, searched, launched, watched,
+# recorded), and so a repository adopting the console has a working
 # `make help` to copy.
 #
 # The console reads the `help` output below and nothing else. The shape of that
@@ -65,8 +65,8 @@ deploy:
 
 # The shape a real deploy prints: every notification is `failed_when: false`,
 # so the playbook says out loud which of them landed. Noibu is left failing on
-# purpose — a webhook that never arrives costs the deploy nothing, and that is
-# exactly why nobody notices it.
+# purpose, because a webhook that never arrives costs the deploy nothing, and
+# that is exactly why nobody notices it.
 .PHONY: notifications
 notifications:
 	@echo "TASK [Report which notifications landed] ****************************************"

@@ -1,4 +1,4 @@
-/* Ordane — the Bridge design.
+/* Ordane, the Bridge design.
 
    Every colour comes from `@define-color` names the application writes ahead of
    this file, out of desktop/tokens.py. Nothing here hardcodes a hex, so the two

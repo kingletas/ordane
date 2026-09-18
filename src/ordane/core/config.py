@@ -74,7 +74,7 @@ class Config:
     hidden: list[str] = field(default_factory=list)
     playbook_globs: list[str] = field(default_factory=lambda: list(DEFAULT_PLAYBOOK_GLOBS))
     # Whether `playbooks:` was written down. The default set is this estate's
-    # shape, and a repository driven by ansible-playbook needs a wider one —
+    # shape, and a repository driven by ansible-playbook needs a wider one,
     # but only where nobody has said where the playbooks are.
     playbooks_declared: bool = False
     metrics: dict[str, Any] = field(default_factory=dict)

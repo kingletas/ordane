@@ -2,7 +2,7 @@
 
 It is a place rather than a dialog because it is one of the things Ordane
 manages. The dialog that writes the allow list is still where the writing
-happens — this is where you find out that it needs doing.
+happens, and this is where you find out that it needs doing.
 """
 
 from __future__ import annotations
@@ -138,7 +138,7 @@ def _where(standing: env_module.Standing) -> str:
 
 
 def _what_it_needs(standing: env_module.Standing, on_manage) -> Gtk.Widget:
-    """Cause, consequence and the button that fixes it — never a bare complaint."""
+    """Cause, consequence and the button that fixes it, never a bare complaint."""
     holder = w.box(spacing=10)
     holder.set_margin_top(8)
     if standing.usable:

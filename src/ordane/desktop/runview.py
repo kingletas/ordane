@@ -186,7 +186,7 @@ class RunView(Gtk.Box):
 
         # Everything above the output goes in one scroller with a ceiling on
         # it. A box whose children ask for more height than it has does not
-        # push them off the bottom, it draws them on top of each other — which
+        # push them off the bottom, it draws them on top of each other, which
         # is what put the log over the recap.
         upper = w.box(spacing=0)
         upper.append(self._title)
@@ -209,8 +209,8 @@ class RunView(Gtk.Box):
 
         # A fixed share of the pane cut whichever half had more in it: nine
         # hosts and a recap do not fit in the room left over by an output pane
-        # that always took half. This is the boundary, and it is draggable —
-        # neither half is more important than the other on every run.
+        # that always took half. This is the boundary, and it is draggable,
+        # because neither half is more important than the other on every run.
         self._split = Gtk.Paned(
             orientation=Gtk.Orientation.VERTICAL,
             start_child=above,
@@ -560,8 +560,8 @@ class RunView(Gtk.Box):
             self._header.append(_failures(result))
         if result.has_recap:
             # Folded only where the chart above already says it. A run with no
-            # chart — a question asked of a host group, or anything of one
-            # task — would otherwise have its per-host answers behind a
+            # chart, such as a question asked of a host group or anything of
+            # one task, would otherwise have its per-host answers behind a
             # disclosure and nothing on the page in their place.
             drawn = self._lanes.get_visible()
             recap = w.Section(f"Every host: {result.headline}", folded=drawn)
@@ -590,8 +590,8 @@ class RunView(Gtk.Box):
     def _provenance(self, run: Run) -> Gtk.Widget:
         """One line of running prose: who launched it, from what, and when.
 
-        Middle dots are allowed here and nowhere else — it is a sentence under
-        a heading, not a table pretending to be one.
+        Middle dots are allowed here and nowhere else, because it is a sentence
+        under a heading rather than a table pretending to be one.
         """
         parts = [f"Started {moment(run.started)}"]
         if run.actor:
@@ -640,8 +640,8 @@ class RunView(Gtk.Box):
     def _fill_lanes(self, run: Run) -> None:
         """One lane per host, one cell per task, and a legend under it.
 
-        The lanes are rebuilt only when the shape of the run changes — a new
-        host or a new task. While a run is going, every other second only
+        The lanes are rebuilt only when the shape of the run changes, meaning a
+        new host or a new task. While a run is going, every other second only
         changes what is *in* the cells, and redrawing the block for that
         appended a second copy of it every tick.
         """
@@ -654,7 +654,7 @@ class RunView(Gtk.Box):
         grid = lanes_module.read(text)
         # One column is a list of outcomes, not a shape. A question asked of a
         # host group has exactly one, and drawing it gives a full-width bar per
-        # host that carries one bit each — which is what the pill above already
+        # host that carries one bit each, which is what the pill above already
         # says. The chart exists to show which host is lagging and which task
         # is slow, and neither is answerable from a single column.
         if not grid.known or len(grid.tasks) < MIN_TASKS_FOR_A_CHART:

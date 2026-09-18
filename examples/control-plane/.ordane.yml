@@ -54,13 +54,13 @@ hidden:
 
 # Which task's output says what a run told the outside world. The deploy here
 # opens a PagerDuty window, marks the release in New Relic and posts a Noibu
-# webhook, and every one of those is `failed_when: false` — so a webhook that
+# webhook, and every one of those is `failed_when: false`, so a webhook that
 # never landed costs the deploy nothing and is invisible unless something looks.
 notifications:
   task: Report which notifications landed
 
 # What this control plane checks about itself, and the image it checks in.
-# Read-only, no network, as you rather than root — a check that needs to write
+# Read-only, no network, as you rather than root. A check that needs to write
 # to the repository or reach a host is not a check.
 validation:
   image: python:3.12-slim
@@ -89,7 +89,7 @@ playbook_command: [bin/run-playbook, "{playbook}"]
 # against a throwaway container fleet would read as a release.
 #
 # In a real control plane this is `production`. The demo names `staging`
-# instead — the environment you can actually launch against here — so that
+# instead, the environment you can actually launch against here, so that
 # running a deploy from the console fills the measures in front of you.
 metrics:
   environments: [staging]

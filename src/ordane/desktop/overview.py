@@ -4,8 +4,8 @@
    line naming the single thing standing in the way. Nothing else competes.
 2. The instruments. The environments, the setup card while there is one, the
    delivery measures, the objectives.
-3. Activity. What ran today, as a real block rather than behind a disclosure —
-   the thing you actually did today used to be below the fold.
+3. Activity. What ran today, as a real block rather than behind a disclosure.
+   The thing you actually did today used to be below the fold.
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ class Overview(Gtk.Box):
         first = self._signature is None
         self._signature = signature
         # Building a page gives focus to its first focusable row, and a
-        # scroller follows focus — so a refresh moved the reader down the page
+        # scroller follows focus, so a refresh moved the reader down the page
         # every few seconds. The offset is put back once the layout settles.
         where = self._scroller.get_vadjustment().get_value()
         w.release_focus(self._body)

@@ -99,7 +99,7 @@ targets:
     danger: high
     # Counts as a release, for the delivery measures.
     deploy: true
-    # Counts as a cutover — a moment customers can see.
+    # Counts as a cutover, a moment customers can see.
     cutover: true
     # Offers a Dry run switch, which adds --check.
     dry_run: true

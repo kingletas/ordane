@@ -2,7 +2,7 @@
 
 Everything here follows two rules from the design. Nothing is set in capitals,
 because a label in capitals is a label that has been shouted; and mono is only
-ever used for a string somebody could paste into a terminal — a hostname, an
+ever used for a string somebody could paste into a terminal: a hostname, an
 environment, an action, a ref, a path, a duration, a timestamp.
 """
 
@@ -364,7 +364,7 @@ def setup_card(*, title: str, note: str, fraction: float, counted: str, on_go) -
 def metric_card(measure: Measure, series=None, animate: bool = True) -> Gtk.Widget:
     """One delivery measure: its name, the figure, what it is measured over.
 
-    A measure with no source is dormant rather than alarming — a dashed outline
+    A measure with no source is dormant rather than alarming: a dashed outline
     and the sentence that would turn it on, never the words `Setup needed`.
     """
     holder = card(spacing=0)

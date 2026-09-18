@@ -291,7 +291,7 @@ class MetricLine(Gtk.DrawingArea):
     """A line with the area under it filled, for a measure that is a level.
 
     It draws itself left to right once, which is the only motion on the page
-    that is not a live run — and none at all when reduced motion is asked for.
+    that is not a live run, and none at all when reduced motion is asked for.
     """
 
     STEP_MS = 16
@@ -442,8 +442,8 @@ class Cells(Gtk.DrawingArea):
     """One host's lane: a cell per task, in the state that host left it in.
 
     This is the one place worth spending visual boldness. It gives the shape of
-    a run — which hosts are lagging, which task is slow — in one look, which no
-    log can do.
+    a run in one look: which hosts are lagging, and which task is slow. No log
+    can do that.
     """
 
     HEIGHT = 22

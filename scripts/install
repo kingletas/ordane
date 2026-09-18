@@ -18,7 +18,7 @@ rm -f "$target"
 cat > "$target" <<WRAPPER
 #!/usr/bin/env bash
 #
-# ordane — a desktop console for an Ansible control plane.
+# ordane: a desktop console for an Ansible control plane.
 #
 # Installed by \`make install\` in $here. Edit the source there, then reinstall;
 # never edit this file.
@@ -50,4 +50,4 @@ command -v update-desktop-database > /dev/null && update-desktop-database -q "$a
 command -v gtk-update-icon-cache > /dev/null \
 	&& gtk-update-icon-cache -qtf "$HOME/.local/share/icons/hicolor" 2> /dev/null || true
 
-echo "source stays in $here — edit there and reinstall"
+echo "source stays in $here, so edit there and reinstall"

@@ -1,13 +1,13 @@
 """The parameters a Makefile already documents, read out of the Makefile.
 
-A control plane says what its recipes need — in the example line above a target,
+A control plane says what its recipes need, in the example line above a target
 and in the guard inside it. Reading that is what stops a console demanding a
 config file before it can offer a form.
 
 Only a name that appears in a documented `make <target> key=value` example is
-treated as a parameter. A recipe reads plenty of other variables — `inventory`,
-`owner`, `group` come from the profile — and offering those as fields would ask
-somebody to fill in what the deployment already knows.
+treated as a parameter. A recipe reads plenty of other variables that come from
+the profile, such as `inventory`, `owner` and `group`, and offering those as
+fields would ask somebody to fill in what the deployment already knows.
 """
 
 from __future__ import annotations

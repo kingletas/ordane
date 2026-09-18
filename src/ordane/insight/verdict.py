@@ -1,7 +1,7 @@
 """One sentence saying whether it is safe to act, and one line naming what is not.
 
 This is the hero of the Overview and the only thing on it allowed to be large.
-It answers the question the console is opened with — *can I deploy?* — before
+It answers the question the console is opened with, *can I deploy?*, before
 any card, table or number is read.
 
 The four states are the ramp's, and the important one is `waiting`: a

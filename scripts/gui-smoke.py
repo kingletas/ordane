@@ -33,7 +33,7 @@ from pathlib import Path
 os.environ.setdefault("XDG_CONFIG_HOME", tempfile.mkdtemp(prefix="ordane-smoke-config-"))
 
 # `xvfb-run` sets DISPLAY, but GTK prefers Wayland whenever WAYLAND_DISPLAY is
-# also set — so on a Wayland desktop this opened a window on the real
+# also set, so on a Wayland desktop this opened a window on the real
 # compositor instead of on the virtual display. The window is mapped, sized and
 # correct, and it is never given a frame, so every screenshot reports "nothing
 # painted" and every check that needs a layout pass fails. Naming the backend is
@@ -320,7 +320,7 @@ def check_every_old_rail_row_is_in_the_palette(window) -> None:
 
 # The widest a place may insist on being. The window opens at 1180 with a
 # 236 px rail, so anything past this cannot be laid out in the window it
-# ships with — and GTK does not refuse it, it draws widgets on top of each
+# ships with, and GTK does not refuse it: it draws widgets on top of each
 # other and logs about the overlay exceeding its width.
 WIDEST_PLACE = 820
 

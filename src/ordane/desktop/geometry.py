@@ -20,7 +20,7 @@ DEFAULT = (1180, 820)
 MINIMUM = (640, 480)
 
 # Where the things this console does live: the rail, the menu button, or both.
-# Neither is wrong: the rail is faster to read and the menu is out of the way —
+# Neither is wrong: the rail is faster to read and the menu is out of the way,
 # so it is a choice rather than a default somebody has to work around.
 RAIL = "rail"
 MENU = "menu"
