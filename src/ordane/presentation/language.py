@@ -207,8 +207,8 @@ CHAIN_STATES = {
     "unreadable": Word("Cannot be read", "The file is there but could not be read."),
     "fragment": Word(
         "An excerpt",
-        "These records link to each other, and the first links to one that is not in "
-        "this file. Read it against the ledger it was cut from.",
+        "One release's records, copied out of a ledger into an evidence bundle. Read it "
+        "against the log its chain.txt names.",
     ),
 }
 

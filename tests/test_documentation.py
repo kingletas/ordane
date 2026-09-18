@@ -230,11 +230,12 @@ def test_every_ledger_identifier_a_person_sees_has_a_word():
     """A raw identifier on a page is the tool showing its own vocabulary to a reader.
 
     The run states and the delivery measures already had this check; the
-    ledger's five chain states, its outcomes and its eleven events did not, and
-    a front end renders whatever the engine hands it.
+    ledger's chain states, its outcomes and its eleven events did not, and a
+    front end renders whatever the engine hands it.
     """
     from ordane.desktop import pills
     from ordane.insight import ledger
+    from ordane.web import app as web_app
 
     states = ledger.CHAIN_STATES
     outcomes = (
@@ -250,6 +251,13 @@ def test_every_ledger_identifier_a_person_sees_has_a_word():
         assert language.chain_state(state).name != state, f"{state} is shown as itself"
         assert language.chain_state(state).meaning
         assert state in pills.CHAIN_PILL, f"{state} has no pill"
+        # The browser keeps its own map, and it is the one that went stale on
+        # the first new state: a state missing from it is drawn in the class
+        # used to play things down, which is the alarm arriving quieter than
+        # the all-clear. `empty` and `missing` are the two that are not a
+        # verdict on a chain, and being played down is right for them.
+        if state not in (ledger.EMPTY, ledger.MISSING):
+            assert state in web_app.CHAIN_CLASS, f"{state} has no class in the browser"
     for outcome in outcomes:
         assert language.ledger_outcome(outcome).name != outcome
         assert language.ledger_outcome(outcome).meaning

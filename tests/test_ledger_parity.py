@@ -13,6 +13,7 @@ fails here rather than being noticed by somebody reading a page months later.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -68,9 +69,36 @@ def book(tmp_path) -> ledger.Book:
     return ledger.gather(a_plane(tmp_path), [], [FIXTURE])[0]
 
 
+def as_a_bundle(tmp_path: Path) -> Path:
+    """The fixture as `audit-log write-evidence` hands it over: records plus a `chain.txt`."""
+    records = [json.loads(line) for line in FIXTURE.read_text(encoding="utf-8").splitlines()]
+    out = tmp_path / "evidence"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "audit.jsonl").write_text(
+        "".join(json.dumps(r, sort_keys=True) + "\n" for r in records), encoding="utf-8"
+    )
+    rows = "\n".join(
+        f"{r['seq']}  {r['prev_hash']}  {r['hash']}  {r.get('event', '')}" for r in records
+    )
+    (out / "chain.txt").write_text(
+        f"log: {FIXTURE}\nrecords in log: {len(records)}\n"
+        f"head hash: {records[-1]['hash']}\nchain verified: yes\n\n"
+        "seq  prev_hash  hash  event\n" + rows + "\n",
+        encoding="utf-8",
+    )
+    (out / "summary.md").write_text("# a release\n", encoding="utf-8")
+    (out / "SHA256SUMS").write_text("", encoding="utf-8")
+    return out / "audit.jsonl"
+
+
 @pytest.fixture
 def broken(tmp_path) -> ledger.Book:
     return ledger.gather(a_plane(tmp_path), [], [tampered(tmp_path)])[0]
+
+
+@pytest.fixture
+def excerpt(tmp_path) -> ledger.Book:
+    return ledger.gather(a_plane(tmp_path), [], [as_a_bundle(tmp_path)])[0]
 
 
 def a_client(tmp_path: Path, path: Path) -> TestClient:
@@ -306,6 +334,22 @@ def test_every_answer_carries_its_own_grade_in_every_front_end(broken, tmp_path,
         assert f'class="level-{answer.level}"' in row, f"the browser misgrades {answer.question!r}"
 
 
+def test_an_excerpt_is_said_in_every_front_end(excerpt, tmp_path, capsys):
+    """The state the browser had no colour for, so it drew the one it plays things down with."""
+    listing, deploy = terminal_pages(excerpt, capsys)
+    web_listing, web_deploy = web_pages(tmp_path, excerpt.source.path)
+    drawn = desktop_text(excerpt)
+
+    assert excerpt.chain.state == ledger.FRAGMENT, "this fixture is not read as an excerpt"
+    word = language.chain_state(ledger.FRAGMENT).name
+    for text in (listing, deploy, web_listing, web_deploy, drawn):
+        assert word in text, f"one front end does not say {word!r}"
+    # The engine grades it as needing attention, so the browser may not draw it
+    # in the class it keeps for things a reader can pass over.
+    assert "level-unknown" not in web_listing, "the browser plays an excerpt down"
+    assert "level-attention" in web_listing
+
+
 def test_a_broken_chain_is_said_in_every_front_end(broken, tmp_path, capsys):
     listing, deploy = terminal_pages(broken, capsys)
     web_listing, web_deploy = web_pages(tmp_path, broken.source.path)
@@ -400,10 +444,22 @@ def test_the_span_customers_feel_leads_in_every_front_end(book, tmp_path, capsys
 
 
 def a_release_deployed_twice(tmp_path: Path) -> Path:
-    """The same release id, deployed, then deployed again."""
+    """The same release id, deployed, then deployed again a day later.
+
+    The second attempt is stamped later on purpose. Copied verbatim the two
+    share a time to the second, and then which one is "older" is decided by the
+    order they happen to be listed in rather than by anything real.
+    """
     records = [json.loads(line) for line in FIXTURE.read_text(encoding="utf-8").splitlines()]
+    later = []
+    for record in records:
+        moved = dict(record)
+        stamp = datetime.fromisoformat(record["recorded_at"].replace("Z", "+00:00"))
+        moved["recorded_at"] = (stamp + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+        later.append(moved)
+
     previous, rows = ledger.GENESIS, []
-    for record in [*records, *records]:
+    for record in [*records, *later]:
         rebuilt = {**record, "prev_hash": previous}
         rebuilt.pop("hash", None)
         rebuilt["seq"] = len(rows) + 1
@@ -421,6 +477,8 @@ def test_the_browser_can_reach_the_earlier_attempt(tmp_path):
     books = ledger.gather(a_plane(tmp_path), [], [path])
     older, newer = sorted(books[0].deployments, key=lambda d: d.started_at)
     assert older.release == newer.release, "this fixture is supposed to be one release twice"
+    assert older.started_at < newer.started_at, "the two attempts cannot be told apart in time"
+    assert older.ref != newer.ref, "both attempts answer to the same reference"
 
     listing, _ = web_pages(tmp_path, path)
     assert f'href="/ledger/{older.ref}"' in listing, "the earlier attempt is not linked"
@@ -430,3 +488,7 @@ def test_the_browser_can_reach_the_earlier_attempt(tmp_path):
     page = client.get(f"/ledger/{older.ref}").text
     assert "deployed 2 times" in page.lower(), "the page does not say it was retried"
     assert f'href="/ledger/{newer.ref}"' in page, "the other attempt is not offered"
+
+    # And the bare name still reaches the newest, which is what typing one means.
+    by_name = ledger.find(books, older.release)
+    assert by_name is not None and by_name[1].ref == newer.ref

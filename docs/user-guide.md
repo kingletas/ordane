@@ -300,7 +300,7 @@ A ledger is one JSON object per line. Ordane reads these keys:
 | Key | Used for |
 |---|---|
 | `schema` | the record format. A ledger written in a newer one is named as such rather than read as though its fields were empty |
-| `seq`, `prev_hash`, `hash` | the chain. A line whose `seq` is not its line number, or whose hashes do not match, breaks it |
+| `seq`, `prev_hash`, `hash` | the chain. A line whose `seq` is not its line number, or whose hashes do not match, breaks it. An evidence bundle is read a different way, below |
 | `event` | which step this is, and therefore which row of the flow |
 | `env_name`, `release` | grouping records into deploys, and naming them |
 | `recorded_at` | the times, and every span |
@@ -325,12 +325,14 @@ ordane ledger --repo ~/control-plane
 ordane ledger last --repo ~/control-plane
 ```
 
-The first lists the ten newest deploys per ledger, or `-n` of them, and its exit status is the point: **0** when every chain it read is intact, **2** when one is broken, and **1** when it could read nothing at all or a file it found would not open. A path with no file at it does not fail the job, because an environment that has never deployed looks exactly the same from here; the listing names those paths either way. The second prints one deploy in full. Pass a release id instead of `last` to choose which.
+The first lists the ten newest deploys per ledger, or `-n` of them, and its exit status is the point: **0** when every chain it read is intact, **2** when one is broken, and **1** when it could read nothing at all or a file it found would not open. A path with no file at it does not fail the job, because an environment that has never deployed looks exactly the same from here; the listing names those paths either way. The second prints one deploy in full. Pass a release id instead of `last` to choose which. A release deployed more than once has an attempt each: the bare name reaches the newest, and the listing prints a reference of the form `<environment>/<release>@<line>` that reaches any of the others.
 
 `--ledger PATH` reads a file you name instead of the configured ones, and it works on `ordane app` and `ordane serve` too.
 
 > [!WARNING]
-> An evidence bundle is an excerpt, and reads as one. The playbook's `make evidence` writes one deploy's records with the `seq` and `prev_hash` they had in the file they came from, so the chain in it starts partway through another. Ordane calls that **An excerpt**: the records link to each other, and the first links to a record that is not in the file. That is also what a selective copy looks like, and nothing in the file can tell the two apart, so read a bundle against the ledger it was cut from. `ordane --page ledger` opens the desktop console on this view.
+> **An evidence bundle is read as an excerpt, and a ledger missing its opening records is not.** The playbook's `make evidence` writes one release's records into a folder, beside a `chain.txt` naming the log they came from, how many records it held and where it ended. Ordane reads that folder as **An excerpt**: it checks every record still hashes to its own contents and is the record `chain.txt` wrote down, and it says which log to check the bundle against. It does not read the records as a chain, because they are a selection: anything deployed in between was left behind, so the numbering skips and the record after a gap links to one the bundle does not hold.
+>
+> **A ledger whose opening records are gone is a broken chain**, and `ordane ledger` exits 2 on it. Nothing in a file can say whether its own missing start was a selection somebody asked for or a deletion somebody made, which is why the bundle's own `chain.txt` is what tells the two apart rather than the ledger's first line. `ordane --page ledger` opens the desktop console on this view.
 
 ## Setup
 

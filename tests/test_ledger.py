@@ -646,27 +646,79 @@ def test_the_writer_still_hashes_a_record_the_way_this_reader_does(tmp_path):
 # --- an excerpt of a ledger, which is what an evidence bundle is ---
 
 
-def an_excerpt(tmp_path, keep: slice):
-    """Records lifted out of a ledger with the `seq` and `prev_hash` they had there."""
+def a_bundle(tmp_path, keep, folder="evidence"):
+    """An evidence bundle as `audit-log write-evidence` writes one.
+
+    `keep` is the indices of the records to copy, because the writer selects by
+    release rather than slicing: anything deployed in between is left behind and
+    the numbering skips it.
+    """
     whole = write_chain(tmp_path / "whole.audit.jsonl", a_full_deploy("r1"))
-    lines = whole.read_text(encoding="utf-8").splitlines()[keep]
-    cut = tmp_path / "evidence.audit.jsonl"
-    cut.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return cut
+    lines = whole.read_text(encoding="utf-8").splitlines()
+    records = [json.loads(line) for line in lines]
+    selected = [records[i] for i in keep]
+
+    out = tmp_path / folder
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "audit.jsonl").write_text(
+        "".join(json.dumps(r, sort_keys=True, ensure_ascii=False) + "\n" for r in selected),
+        encoding="utf-8",
+    )
+    rows = "\n".join(
+        f"{r['seq']}  {r['prev_hash']}  {r['hash']}  {r.get('event', '')}" for r in selected
+    )
+    (out / "chain.txt").write_text(
+        f"log: {whole}\n"
+        f"records in log: {len(records)}\n"
+        f"head hash: {records[-1]['hash']}\n"
+        "chain verified: yes\n"
+        "\n"
+        "seq  prev_hash  hash  event\n" + rows + "\n",
+        encoding="utf-8",
+    )
+    (out / "summary.md").write_text("# r1\n", encoding="utf-8")
+    (out / "SHA256SUMS").write_text("", encoding="utf-8")
+    return out / "audit.jsonl"
 
 
-def test_an_excerpt_is_read_as_one_rather_than_as_a_tamper(plane, tmp_path):
-    """`make evidence` writes exactly this, and it was reported as broken at line 1."""
-    chain = ledger.read(an_excerpt(tmp_path, slice(2, None)))
+def test_an_evidence_bundle_is_read_as_an_excerpt(plane, tmp_path):
+    """A bundle is a copy somebody asked for, and was reported as broken at line 1."""
+    chain = ledger.read(a_bundle(tmp_path, range(2, 6)))
 
     assert chain.state == ledger.FRAGMENT
-    assert chain.broken_line == 0, "an excerpt was reported as breaking somewhere"
-    assert chain.entries, "the excerpt's records were dropped"
+    assert chain.broken_line == 0, "a bundle was reported as breaking somewhere"
+    assert chain.entries, "the bundle's records were dropped"
 
 
-def test_an_excerpt_that_was_edited_still_breaks(plane, tmp_path):
-    """The point is not to trust an excerpt, it is to stop calling a good one a fake."""
-    cut = an_excerpt(tmp_path, slice(2, None))
+def test_a_bundle_whose_records_skip_what_ran_in_between(plane, tmp_path):
+    """The shape the writer really produces: it selects one release, so `seq` has gaps.
+
+    Reading a bundle as a chain cannot work, whatever the arithmetic: the record
+    after a gap links to one the bundle does not hold.
+    """
+    cut = a_bundle(tmp_path, [0, 1, 2, 5])
+    seqs = [json.loads(line)["seq"] for line in cut.read_text(encoding="utf-8").splitlines()]
+    assert seqs != list(range(seqs[0], seqs[0] + len(seqs))), "this fixture has no gap in it"
+
+    chain = ledger.read(cut)
+
+    assert chain.state == ledger.FRAGMENT
+    assert all(e.trusted for e in chain.entries)
+
+
+def test_a_bundle_says_which_log_it_came_from(plane, tmp_path):
+    """The bundle's own numbers are what an auditor checks it against."""
+    chain = ledger.read(a_bundle(tmp_path, range(2, 6)))
+
+    assert chain.bundle is not None
+    assert chain.bundle.log.endswith("whole.audit.jsonl")
+    assert chain.bundle.records == 6
+    assert chain.bundle.head
+
+
+def test_a_record_edited_inside_a_bundle_still_breaks_it(plane, tmp_path):
+    """The point is not to trust a bundle, it is to stop calling a good one a fake."""
+    cut = a_bundle(tmp_path, range(2, 6))
     lines = cut.read_text(encoding="utf-8").splitlines()
     record = json.loads(lines[1])
     record["release"] = "something-else"
@@ -676,14 +728,44 @@ def test_an_excerpt_that_was_edited_still_breaks(plane, tmp_path):
     assert ledger.read(cut).state == ledger.BROKEN
 
 
+def test_a_record_swapped_for_one_the_bundle_never_listed_breaks_it(plane, tmp_path):
+    """A record that hashes correctly is still not this bundle's record."""
+    cut = a_bundle(tmp_path, range(2, 6))
+    other = a_bundle(tmp_path, range(0, 6), folder="second")
+    lines = cut.read_text(encoding="utf-8").splitlines()
+    lines[1] = other.read_text(encoding="utf-8").splitlines()[0]
+    cut.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    assert ledger.read(cut).state == ledger.BROKEN
+
+
+def test_a_ledger_with_its_opening_records_gone_is_broken(plane, tmp_path):
+    """The direction that matters: cutting records off the front is a tamper, not an excerpt.
+
+    Without the file the writer puts beside a bundle, there is nothing saying
+    these records were ever asked for, and the file's own first record cannot be
+    the thing that decides it.
+    """
+    whole = write_chain(tmp_path / "staging.audit.jsonl", a_full_deploy("r1"))
+    lines = whole.read_text(encoding="utf-8").splitlines()
+    whole.write_text("\n".join(lines[3:]) + "\n", encoding="utf-8")
+
+    chain = ledger.read(whole)
+
+    assert chain.state == ledger.BROKEN
+    assert chain.broken_line == 1
+    assert not any(e.trusted for e in chain.entries)
+
+
 def test_an_excerpt_says_it_cannot_be_trusted_on_its_own(plane, tmp_path):
-    chain = ledger.read(an_excerpt(tmp_path, slice(2, None)))
+    chain = ledger.read(a_bundle(tmp_path, range(2, 6)))
     deployments = ledger.deployments(chain)
     answers = ledger.answers(deployments[0], chain)
     trust = next(a for a in answers if a.question == "Can these records be trusted?")
 
     assert trust.answer == "Not on their own"
     assert trust.level == language.ATTENTION
+    assert "whole.audit.jsonl" in trust.detail, "the answer does not say what to check it against"
 
 
 def test_a_whole_ledger_is_still_intact(plane, tmp_path):

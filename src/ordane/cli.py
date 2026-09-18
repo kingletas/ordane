@@ -173,7 +173,12 @@ def _parser() -> argparse.ArgumentParser:
     book = sub.add_parser("ledger", help="read the deploy ledger and check its chain")
     _common(book)
     _ledger_flag(book)
-    book.add_argument("release", nargs="?", default="", help="a release id, or `last`")
+    book.add_argument(
+        "release",
+        nargs="?",
+        default="",
+        help="a release id, `last`, or `<environment>/<release>@<line>` for one attempt",
+    )
     book.add_argument("-n", "--limit", type=int, default=10, help="deploys per ledger")
 
     catalog = sub.add_parser("catalog", help="print the parsed catalogue, and exit")
@@ -609,6 +614,12 @@ def _ledger_status(books: list) -> int:
     fault: an environment that has never deployed looks exactly the same from
     here, and a nightly job that cries wolf on a fresh environment is one
     nobody reads. The listing names those paths either way.
+
+    An evidence bundle is not a fault either. It is a copy somebody asked the
+    writer for, it says so in the file beside it, and every record in it
+    verified. A ledger with its opening records gone is a broken chain and
+    exits accordingly, which is the whole reason the two are told apart by the
+    bundle's own `chain.txt` rather than by the ledger's first line.
     """
     if any(book.chain.state == ledger.BROKEN for book in books):
         return LEDGER_BROKEN

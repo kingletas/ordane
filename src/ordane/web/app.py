@@ -41,6 +41,7 @@ CHAIN_CLASS = {
     "intact": "level-ok",
     "broken": "level-problem",
     "unreadable": "level-attention",
+    "fragment": "level-attention",
 }
 
 
@@ -249,7 +250,10 @@ def create_app(settings: Settings) -> FastAPI:
         _, cfg = load_catalog()
         return page(request, "ledger.html", config=cfg, books=_books(cfg))
 
-    @app.get("/ledger/{release}", response_class=HTMLResponse)
+    # `:path` because a reference carries the environment and so holds a slash.
+    # Without it the route matches a bare release only, and every link the
+    # listing draws answers 404.
+    @app.get("/ledger/{release:path}", response_class=HTMLResponse)
     def deploy(request: Request, release: str):
         _, cfg = load_catalog()
         found = ledger_module.find(_books(cfg), release)

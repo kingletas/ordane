@@ -35,8 +35,9 @@ BROKEN = "broken"
 EMPTY = "empty"
 MISSING = "missing"
 UNREADABLE = "unreadable"
-# Records cut out of a ledger: they link to each other and the first links to
-# something that is not in the file. An evidence bundle is exactly this shape.
+# An evidence bundle: one release's records copied out of a ledger, beside the
+# `chain.txt` naming the log they came from. A ledger that merely starts partway
+# through is not this, it is a ledger with its opening records gone.
 FRAGMENT = "fragment"
 
 # Every state a chain can be in. Walked by the checks that ask whether each one
@@ -146,6 +147,22 @@ class Entry:
         return str(value).strip().lower() in ("true", "yes", "1")
 
 
+# The three files `audit-log write-evidence` puts beside a bundle's records.
+# All three, because one file alone is too easy to find next to a ledger by
+# accident, and reading a live ledger as a bundle is the failure that matters.
+BUNDLE_FILES = ("chain.txt", "summary.md", "SHA256SUMS")
+
+
+@dataclass(frozen=True)
+class Bundle:
+    """What an evidence bundle's `chain.txt` says about the log its records came from."""
+
+    log: str
+    records: int
+    head: str
+    rows: dict[int, tuple[str, str]] = field(default_factory=dict)
+
+
 @dataclass(frozen=True)
 class Chain:
     """One ledger file: its records and whether the chain holding them is whole."""
@@ -157,6 +174,7 @@ class Chain:
     broken_line: int = 0
     reason: str = ""
     head: str = ""
+    bundle: Bundle | None = None
 
     @property
     def intact(self) -> bool:
@@ -204,11 +222,14 @@ class Deployment:
         """What addresses this attempt and no other.
 
         A release deployed twice leaves two attempts under one name, and asking
-        for the name alone reaches the newer one for ever. Every record carries
-        its line number in the file, so the first one's names the attempt.
+        for the name alone reaches the newer one for ever. The line number tells
+        two attempts in one ledger apart, and the environment tells apart the
+        ordinary case of one release going to staging and then to production,
+        where both ledgers can open at the same line.
         """
         seq = self.entries[0].seq if self.entries else 0
-        return f"{self.release}@{seq}" if self.release else f"@{seq}"
+        attempt = f"{self.release}@{seq}" if self.release else f"@{seq}"
+        return f"{self.environment}/{attempt}" if self.environment else attempt
 
     @property
     def start(self) -> Entry:
@@ -403,41 +424,105 @@ def record_hash(record: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def read(path: Path, environment: str = "") -> Chain:
-    """The chain in one file. Never raises: an unreadable ledger is a state, not a crash."""
-    name = environment or _environment_from_name(path)
-    if not path.exists():
-        return Chain(path=path, environment=name, state=MISSING)
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError) as exc:
-        return Chain(path=path, environment=name, state=UNREADABLE, reason=str(exc))
-    if not lines:
-        return Chain(path=path, environment=name, state=EMPTY)
+def _bundle_beside(path: Path) -> Bundle | None:
+    """The `chain.txt` of an evidence bundle, when the records sit in one.
 
+    A bundle is a selection rather than a chain. It holds one release's records,
+    so the numbering skips whatever else ran in between and the gaps can never
+    link. What makes it checkable is the file the writer puts beside it, naming
+    the log, how long it was and where it ended.
+    """
+    folder = path.parent
+    if not all((folder / name).exists() for name in BUNDLE_FILES):
+        return None
+    try:
+        text = (folder / "chain.txt").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    facts: dict[str, str] = {}
+    rows: dict[int, tuple[str, str]] = {}
+    for line in text.splitlines():
+        label, named, value = line.partition(": ")
+        if named:
+            facts[label.strip()] = value.strip()
+            continue
+        columns = line.split()
+        if len(columns) >= 3 and columns[0].isdigit():
+            rows[int(columns[0])] = (columns[1], columns[2])
+    if "head hash" not in facts:
+        return None
+    length = facts.get("records in log", "")
+    return Bundle(
+        log=facts.get("log", ""),
+        records=int(length) if length.isdigit() else 0,
+        head=facts["head hash"],
+        rows=rows,
+    )
+
+
+def _read_bundle(path: Path, name: str, lines: list[str], bundle: Bundle) -> Chain:
+    """An evidence bundle, checked against the `chain.txt` that came with it.
+
+    Records that are next to each other in the log still link, and the rest
+    cannot, so what is asked of every record is that it hashes to its own
+    contents and is the record `chain.txt` wrote down at that number.
+    """
     entries: list[Entry] = []
-    previous = GENESIS
     broken_line, reason = 0, ""
-    # An excerpt keeps the numbers it had in the file it came from, so its first
-    # record is rarely line 1 and its `prev_hash` names a record that is not
-    # here. That is a fragment, not a break, and reading it as one told an
-    # auditor their own copy had been tampered with.
-    first, _ = _parse(lines[0])
-    offset = 0
-    fragment = False
-    if isinstance(first.get("seq"), int) and first.get("prev_hash") != GENESIS:
-        offset = first["seq"] - 1
-        fragment = offset > 0
-        if fragment:
-            previous = str(first.get("prev_hash") or "")
+    # Seeded at genesis so a bundle that happens to start at record one has its
+    # first link checked like any other. A bundle starting later has nothing
+    # before it in the file, and the `seq` test below is what skips that link.
+    last_seq, last_hash = 0, GENESIS
     for number, line in enumerate(lines, 1):
         record, problem = _parse(line)
         if not broken_line and problem:
             broken_line, reason = number, problem
         elif not broken_line:
-            if record.get("seq") != number + offset:
-                expected = number + offset
-                broken_line, reason = number, f"seq is {record.get('seq')!r}, expected {expected}"
+            seq = record.get("seq")
+            row = bundle.rows.get(seq) if isinstance(seq, int) else None
+            if record.get("hash") != record_hash(record):
+                broken_line, reason = number, "hash does not match the record's contents"
+            elif row is None:
+                broken_line, reason = number, f"seq {seq!r} is not in the bundle's chain.txt"
+            elif (record.get("prev_hash"), record.get("hash")) != row:
+                broken_line, reason = number, "the record is not the one chain.txt recorded"
+            elif seq == last_seq + 1 and record.get("prev_hash") != last_hash:
+                broken_line, reason = number, "prev_hash does not match the record before it"
+            else:
+                last_seq, last_hash = seq, record["hash"]
+        if record:
+            entries.append(_entry(record, number, trusted=not broken_line))
+
+    if not name and entries:
+        name = entries[0].environment
+    if broken_line:
+        return Chain(
+            path=path,
+            environment=name,
+            state=BROKEN,
+            entries=entries,
+            broken_line=broken_line,
+            reason=reason,
+            head=last_hash,
+            bundle=bundle,
+        )
+    return Chain(
+        path=path, environment=name, state=FRAGMENT, entries=entries, head=last_hash, bundle=bundle
+    )
+
+
+def _read_chain(path: Path, name: str, lines: list[str]) -> Chain:
+    """A ledger as its writer keeps it: line one is record one, and every record links back."""
+    entries: list[Entry] = []
+    previous = GENESIS
+    broken_line, reason = 0, ""
+    for number, line in enumerate(lines, 1):
+        record, problem = _parse(line)
+        if not broken_line and problem:
+            broken_line, reason = number, problem
+        elif not broken_line:
+            if record.get("seq") != number:
+                broken_line, reason = number, f"seq is {record.get('seq')!r}, expected {number}"
             elif record.get("prev_hash") != previous:
                 broken_line, reason = number, "prev_hash does not match the record before it"
             elif record.get("hash") != record_hash(record):
@@ -449,14 +534,6 @@ def read(path: Path, environment: str = "") -> Chain:
 
     if not name and entries:
         name = entries[0].environment
-    if fragment and not broken_line:
-        return Chain(
-            path=path,
-            environment=name,
-            state=FRAGMENT,
-            entries=entries,
-            head=previous,
-        )
     if broken_line:
         return Chain(
             path=path,
@@ -468,6 +545,23 @@ def read(path: Path, environment: str = "") -> Chain:
             head=previous if previous != GENESIS else "",
         )
     return Chain(path=path, environment=name, state=INTACT, entries=entries, head=previous)
+
+
+def read(path: Path, environment: str = "") -> Chain:
+    """The chain in one file. Never raises: an unreadable ledger is a state, not a crash."""
+    name = environment or _environment_from_name(path)
+    if not path.exists():
+        return Chain(path=path, environment=name, state=MISSING)
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        return Chain(path=path, environment=name, state=UNREADABLE, reason=str(exc))
+    if not lines:
+        return Chain(path=path, environment=name, state=EMPTY)
+    bundle = _bundle_beside(path)
+    if bundle is not None:
+        return _read_bundle(path, name, lines, bundle)
+    return _read_chain(path, name, lines)
 
 
 def deployments(chain: Chain) -> list[Deployment]:
@@ -981,25 +1075,36 @@ def _trust(d: Deployment, chain: Chain) -> Answer:
             f"They sit before the break at line {chain.broken_line}, so they link to the start.",
             language.ATTENTION,
         )
-    if chain.state == FRAGMENT:
+    if chain.state == FRAGMENT and chain.bundle:
+        bundle = chain.bundle
         return Answer(
             question,
             "Not on their own",
-            f"These {len(chain.entries)} records link to each other, and the first links to a "
-            "record that is not in this file. That is what an excerpt looks like and also what "
-            "a selective copy looks like, and nothing here can tell the two apart. Check it "
-            f"against the ledger it was cut from. Head {_short(chain.head, 16)}…",
+            f"These {len(chain.entries)} records are a copy of one release, taken from "
+            f"{bundle.log}, which held {bundle.records} records and ended at "
+            f"{_short(bundle.head, 16)}…. Each one still hashes to its own contents and is the "
+            "record the copy's chain.txt wrote down. That they are all of it, and that the log "
+            "itself was never rewritten, can only be answered against that log.",
             language.ATTENTION,
+            exact=(bundle.head,),
+        )
+    if chain.state == INTACT:
+        return Answer(
+            question,
+            "Nothing in the file was changed",
+            f"The {len(chain.entries)} records here link back to the start, so none was edited "
+            "or reordered. The chain cannot show records cut from the end, or a file rewritten "
+            "whole by whoever holds the writer, and the names in it are what the machine said "
+            f"rather than what anyone checked. Head {_short(chain.head, 16)}…",
             exact=(chain.head,),
         )
+    # Any other state reaching here is one this answer has no wording for, and
+    # the safe answer to a question about trust is never the reassuring one.
     return Answer(
         question,
-        "Nothing in the file was changed",
-        f"The {len(chain.entries)} records here link back to the start, so none was edited "
-        "or reordered. The chain cannot show records cut from the end, or a file rewritten "
-        "whole by whoever holds the writer, and the names in it are what the machine said "
-        f"rather than what anyone checked. Head {_short(chain.head, 16)}…",
-        exact=(chain.head,),
+        "Not from this file alone",
+        f"The chain here reads as {language.chain_state(chain.state).name.lower()}.",
+        language.ATTENTION,
     )
 
 

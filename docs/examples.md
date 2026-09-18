@@ -210,7 +210,7 @@ ordane ledger --repo ~/control-plane
 ordane ledger last --repo ~/control-plane
 ```
 
-The first lists the ten newest deploys per ledger, with who ran each and who approved it, says whether each ledger's chain of hashes still holds, and prints how long deploys here usually take. `-n` changes how many. The second prints one deploy in full, including its own spans: who, what went out, whether it is what was approved and built, whether the site went into maintenance, whether a backup was taken, how it ended, and the flow it was all read from. Pass a release id instead of `last` for a particular one.
+The first lists the ten newest deploys per ledger, with who ran each and who approved it, says whether each ledger's chain of hashes still holds, and prints how long deploys here usually take. `-n` changes how many. The second prints one deploy in full, including its own spans: who, what went out, whether it is what was approved and built, whether the site went into maintenance, whether a backup was taken, how it ended, and the flow it was all read from. Pass a release id instead of `last` for a particular one. A release deployed more than once has an attempt each: the bare name reaches the newest, and the listing prints a `<environment>/<release>@<line>` reference that reaches any of the others.
 
 Nothing here writes to a ledger. The deploy playbook does, which is why a deploy somebody ran from a terminal appears in it as well as one launched from the console.
 
@@ -218,7 +218,7 @@ Nothing here writes to a ledger. The deploy playbook does, which is why a deploy
 ordane ledger --repo ~/control-plane || echo "the ledger is broken or unreadable"
 ```
 
-Its exit status is **0** when every chain it read is intact, **2** when one is broken, and **1** when it could read nothing at all or found a file that would not open. A path with nothing at it does not fail the job: an environment that has never deployed looks the same from here, and a nightly run that cries wolf on a fresh environment is one nobody reads. The listing names those paths. See [Ledger](user-guide.md#ledger) for what the page shows, [the fields it reads](user-guide.md#the-fields-it-reads) for what a record has to carry, and [`ledgers`](configuration.md#ledgers) for pointing it at a file somewhere unusual.
+Its exit status is **0** when every chain it read verified, **2** when one is broken, and **1** when it could read nothing at all or found a file that would not open. An evidence bundle verifies and exits 0: it is a copy somebody asked the writer for, it says so in the `chain.txt` beside it, and every record in it was checked. A ledger with its opening records missing is a broken chain and exits 2. A path with nothing at it does not fail the job: an environment that has never deployed looks the same from here, and a nightly run that cries wolf on a fresh environment is one nobody reads. The listing names those paths. See [Ledger](user-guide.md#ledger) for what the page shows, [the fields it reads](user-guide.md#the-fields-it-reads) for what a record has to carry, and [`ledgers`](configuration.md#ledgers) for pointing it at a file somewhere unusual.
 
 ### Ask an environment whether its hosts are there
 
@@ -505,7 +505,7 @@ The danger labels, the parameters, the runbooks and the refusals all still apply
 
 ### Exit codes and unattended runs
 
-Every command exits 0 when it worked and 1 when it didn't, so `&&` and `set -e` behave. `ordane ledger` is the one exception: it also exits 2, for a chain that has been broken. A refusal is a failure: an unknown environment, a missing required parameter and a target that failed all exit 1.
+Every command exits 0 when it worked and 1 when it didn't, so `&&` and `set -e` behave. `ordane ledger` is the one exception: it also exits 2, for a chain that has been broken, which includes a ledger whose opening records are gone. A refusal is a failure: an unknown environment, a missing required parameter and a target that failed all exit 1.
 
 A target that asks for confirmation can't be launched from a script unless you say so in advance:
 
