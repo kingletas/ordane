@@ -39,22 +39,27 @@ JORDAN = {
 SAM = ("sam@example.com", "SHA256:q8Zk3vN0pX7dLr2mYt5aWc9bEf1gHj4uKs6oIl8nRe0")
 RENEE = ("renee@example.com", "SHA256:Hc4pW9sLq2Zt7xVb1nRk6mYd3fJg8aUe5oKi0lTs2wQ")
 
-# (days ago, hour, who deploys, approver or None, window, how it ends, verified by)
+# (days ago, hour, who deploys, approver or None, window, how it ends, verified by, retry)
 # How it ends: `live`, `backup-failed`, `cut-short`, or `built`.
+#
+# `retry` means this deploy is another go at the release before it rather than a
+# release of its own: same id, same commit, same archive. Two of them here,
+# because a deploy stopped by a failed backup and one cut short mid-cutover are
+# the two ordinary reasons somebody runs the same release again.
 STAGING = (
-    (26, 10, ALEX, SAM, False, "live", PRIYA),
-    (19, 14, PRIYA, SAM, True, "live", None),
-    (12, 11, JORDAN, RENEE, True, "backup-failed", None),
-    (12, 13, JORDAN, RENEE, True, "live", ALEX),
-    (6, 9, ALEX, RENEE, False, "cut-short", None),
-    (6, 10, ALEX, RENEE, False, "live", None),
-    (1, 15, PRIYA, SAM, True, "live", JORDAN),
+    (26, 10, ALEX, SAM, False, "live", PRIYA, False),
+    (19, 14, PRIYA, SAM, True, "live", None, False),
+    (12, 11, JORDAN, RENEE, True, "backup-failed", None, False),
+    (12, 13, JORDAN, RENEE, True, "live", ALEX, True),
+    (6, 9, ALEX, RENEE, False, "cut-short", None, False),
+    (6, 10, ALEX, RENEE, False, "live", None, True),
+    (1, 15, PRIYA, SAM, True, "live", JORDAN, False),
 )
 
 DOCKER = (
-    (9, 16, ALEX, None, False, "live", None),
-    (3, 12, JORDAN, None, False, "built", None),
-    (0, 9, PRIYA, None, True, "live", None),
+    (9, 16, ALEX, None, False, "live", None, False),
+    (3, 12, JORDAN, None, False, "built", None, False),
+    (0, 9, PRIYA, None, True, "live", None, False),
 )
 
 
@@ -65,19 +70,33 @@ def write(directory: Path) -> list[Path]:
     for environment, plan in (("staging", STAGING), ("docker", DOCKER)):
         path = directory / f"{environment}.audit.jsonl"
         records: list[dict] = []
+        before: dict = {}
         for index, deploy in enumerate(plan):
-            records += _deploy(environment, index, *deploy)
+            made = _deploy(environment, index, *deploy, before=before)
+            before = {
+                "release": made[0]["release"],
+                "commit": _hex(f"{environment}-commit-{index}", 40),
+                "artefact": _hex(f"{environment}-archive-{index}", 64),
+            }
+            records += made
         _chain(path, records)
         written.append(path)
     return written
 
 
-def _deploy(environment, index, days_ago, hour, actor, approver, window, ending, verifier):
+def _deploy(
+    environment, index, days_ago, hour, actor, approver, window, ending, verifier, retry, *, before
+):
     local = datetime.now().astimezone().replace(minute=0, second=0, microsecond=0)
     start = (local - timedelta(days=days_ago)).replace(hour=hour).astimezone(UTC)
-    release = f"{start:%Y%m%d}_{int(start.timestamp())}_{environment}"
-    commit = _hex(f"{environment}-commit-{index}", 40)
-    artefact = _hex(f"{environment}-archive-{index}", 64)
+    # A retry is the same release going out again, so it keeps the id and the
+    # archive of the attempt before it. A new id would make it a different
+    # release that happens to look similar.
+    again = retry and bool(before)
+    fresh = f"{start:%Y%m%d}_{int(start.timestamp())}_{environment}"
+    release = before["release"] if again else fresh
+    commit = before["commit"] if again else _hex(f"{environment}-commit-{index}", 40)
+    artefact = before["artefact"] if again else _hex(f"{environment}-archive-{index}", 64)
     clock = [start]
 
     def at(minutes: float = 0) -> str:
@@ -105,7 +124,7 @@ def _deploy(environment, index, days_ago, hour, actor, approver, window, ending,
             "deploy.started",
             0,
             branch="release/2.4" if index % 2 else "main",
-            reused_release=False,
+            reused_release=again,
             goes_live=goes_live,
             playbook_commit=_hex(f"playbook-{index}", 40),
         )
