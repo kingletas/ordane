@@ -2,7 +2,9 @@
 
 Notable changes, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0]: 2026-09-18
+
+Point Ordane at the evidence bundle a deploy playbook hands an auditor and it reads it as what it is: a copy of one release, checked against the file the writer sent with it, rather than a chain that appears to start in the wrong place. A release deployed twice has an address for each attempt. And the console can be installed from a wheel, which it could not before.
 
 ### Added
 
