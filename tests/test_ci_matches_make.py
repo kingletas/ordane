@@ -31,6 +31,30 @@ def workflow_steps() -> list[str]:
     return found
 
 
+def gate_step() -> dict:
+    """The step that runs the gate, as YAML rather than as text.
+
+    Read as text, a comment mentioning a variable satisfies a check that the
+    workflow sets it, which is how the display setup came to be asserted by
+    something a comment could answer.
+    """
+    spec = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    for job in spec["jobs"].values():
+        for step in job["steps"]:
+            if "run" in step and "make" in step["run"]:
+                return step
+    raise AssertionError("no step in the workflow runs make")
+
+
+def wheel_proof() -> str:
+    """The script of the job that builds a wheel and runs it."""
+    spec = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    for step in spec["jobs"]["wheel"]["steps"]:
+        if "run" in step and "uv build --wheel" in step["run"]:
+            return step["run"]
+    raise AssertionError("no step in the wheel job builds a wheel")
+
+
 def make_calls(commands: list[str]) -> set[str]:
     """Every `make <target>` a list of shell commands invokes."""
     called = set()
@@ -85,11 +109,17 @@ def test_ci_insists_the_desktop_really_ran():
     backend matters as much: given only a display, GTK tries Wayland first and
     reaches nothing.
     """
-    body = WORKFLOW.read_text(encoding="utf-8")
-    for proof in ("ORDANE_REQUIRE_GTK", "xvfb-run", "GDK_BACKEND"):
-        assert proof in body, (
-            f"CI no longer sets {proof}, so the desktop suite can skip itself and stay green"
-        )
+    step = gate_step()
+    env = step.get("env") or {}
+    assert env.get("ORDANE_REQUIRE_GTK") == "1", (
+        "the gate step does not set ORDANE_REQUIRE_GTK=1, so the desktop suite "
+        "can skip itself and every test in it still reports green"
+    )
+    assert env.get("GDK_BACKEND") == "x11", (
+        "the gate step does not set GDK_BACKEND=x11: given only a display, GTK "
+        "tries Wayland first and reaches nothing"
+    )
+    assert "xvfb-run" in step["run"], "the gate step does not run under a virtual display"
 
 
 def test_ci_proves_the_wheel_carries_what_the_app_loads():
@@ -99,11 +129,16 @@ def test_ci_proves_the_wheel_carries_what_the_app_loads():
     runs commands that touch no template, font or stylesheet. An exclude rule
     dropping any of those leaves the job green and the window unstyled.
     """
-    body = WORKFLOW.read_text(encoding="utf-8")
-    assert "uv build --wheel" in body, "CI no longer builds a wheel"
-    assert "ordane.desktop.assets" in body or "ordane.web" in body, (
-        "the wheel job never loads a packaged file, so a missing one would not show"
+    script = "\n".join(
+        line for line in wheel_proof().splitlines() if not line.lstrip().startswith("#")
     )
+    for loaded in ("ordane.desktop.assets", "ordane.web"):
+        assert loaded in script, (
+            f"the wheel job never loads {loaded}, so a packaging rule that dropped "
+            "one of its files would leave this job green"
+        )
+    for opened in ("app.css", ".ttf", "templates"):
+        assert opened in script, f"the wheel job never opens {opened}"
 
 
 def test_the_scan_finds_something():

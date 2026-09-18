@@ -93,4 +93,9 @@ def test_the_paste_dialog_builds_for_every_kind_of_list_it_can_add_to(adw, tmp_p
     assert kinds, "the example plane offers no list a person can add to"
     for source in kinds.values():
         dialog = PasteDialog(source=source, repo=scene.repo, on_added=lambda *_: None)
-        assert source.noun in page_text(dialog), f"the dialog never names the {source.noun}"
+        # The title, not the body: the nouns are ordinary words that turn up in
+        # the explanatory sentences anyway, so searching the whole dialog for
+        # one passes whether or not the dialog is labelled.
+        assert dialog.get_title() == f"New {source.noun}", (
+            f"the dialog is titled {dialog.get_title()!r} rather than for the {source.noun}"
+        )

@@ -145,4 +145,39 @@ def test_a_cancel_does_not_wait_on_the_child_s_good_manners(tmp_path, monkeypatc
         time.sleep(0.01)
 
     assert active.finished, "a cancelled run that ignored the signal never ended"
-    assert driver.busy_with("local") is None, "the environment is still locked"
+    # Named, because the lock is taken per target when the scope is by target,
+    # and asking about the environment alone looks at a different key: it
+    # answers None while this very run holds one.
+    assert driver.busy_with("local", "stubborn") is None, "the target is still locked"
+
+
+def test_the_lock_is_back_before_a_run_says_it_is_finished(tmp_path):
+    """Anything that waits on `finished` and starts the next run reaches for that lock.
+
+    Released after the run reports itself finished, the next run on the same
+    target meets a lock the last one has not let go of. The window is one
+    syscall wide, so this asks the question directly rather than racing it:
+    while the release is running, the run must not yet call itself finished.
+    """
+    import time
+
+    from ordane.record.runner import ActiveRun
+    from ordane.record.store import RunStore as Store
+
+    seen = {}
+    run = _a_run()
+    store = Store(tmp_path / "state")
+    store.prepare()
+
+    def releasing() -> None:
+        # Stands in for dropping the environment lock, which is what the real
+        # callback does. Whatever it sees here is what a waiting caller sees.
+        seen["finished"] = active.finished
+        seen["can_be_read_back"] = store.get(run.id) is not None
+
+    active = ActiveRun(run, store, Redactor([]), None, on_finish=releasing)
+    active._finish(time.monotonic())
+
+    assert seen["finished"] is False, "the run called itself finished before the lock was back"
+    assert seen["can_be_read_back"] is True, "the record was not stored before the lock went back"
+    assert active.finished, "the run never called itself finished at all"

@@ -191,9 +191,7 @@ def a_scene(repo: Path, tmp_path: Path, *, runs=()) -> Scene:
         catalog=catalog,
         runs=runs,
         snapshot=snapshot,
-        verdict=verdict_module.decide(
-            catalog=catalog, health=health, setup=setup, runs=runs, error=""
-        ),
+        verdict=verdict_module.decide(catalog=catalog, health=health, setup=setup, runs=runs),
         setup=setup,
         standings=env_module.standings(
             environments=catalog.environments,
