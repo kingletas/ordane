@@ -218,7 +218,7 @@ Nothing here writes to a ledger. The deploy playbook does, which is why a deploy
 ordane ledger --repo ~/control-plane || echo "a ledger has been changed"
 ```
 
-It exits 2 when a chain is broken, so it can run from a scheduled job. See [Ledger](user-guide.md#ledger) for what the page shows, and [`ledgers`](configuration.md#ledgers) for pointing it at a file somewhere unusual.
+It exits 2 when a chain is broken, so it can run from a scheduled job. See [Ledger](user-guide.md#ledger) for what the page shows, [the fields it reads](user-guide.md#the-fields-it-reads) for what a record has to carry, and [`ledgers`](configuration.md#ledgers) for pointing it at a file somewhere unusual.
 
 ### Ask an environment whether its hosts are there
 

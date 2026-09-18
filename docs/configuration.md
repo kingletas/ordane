@@ -179,7 +179,7 @@ Where the deploy ledgers are: the hash-chained audit logs a deploy playbook appe
 
 Leave it out and Ordane reads `audit.path` from each inventory's `group_vars`, which is where a playbook that keeps a ledger already says it is. Only `{{ playbook_dir }}` and `~` are filled in. A path built from any other variable is listed on the Ledger page as one it could not resolve, rather than guessed at.
 
-`ordane ledger --ledger PATH` reads a file you name instead of either, which is how you look at one somebody sent you.
+`ordane ledger --ledger PATH` reads a file you name instead of either, which is how you look at one somebody sent you. What a record in that file has to carry is [the fields it reads](user-guide.md#the-fields-it-reads).
 
 ## metrics and slos
 
